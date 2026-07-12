@@ -1,0 +1,200 @@
+/*
+  Porta Plywood — MES brand theme
+  Version: 1.0  |  2026-07-10
+  Mechanism confirmed against the "Modern Table" Ignition Exchange reference
+  (com.inductiveautomation.perspective, IA Exchange #2195): custom CSS is
+  deployed at the GATEWAY file-system level, not inside the project export,
+  and picked up by naming a component's style.classes entry to match a
+  .psc-<name> selector that Perspective auto-generates from that class name.
+  See DEPLOYMENT.md alongside this file for the exact steps.
+
+  Delta from the reference: that example's Poppins.css pulls from
+  fonts.gstatic.com at render time. A shop-floor Gateway is a reasonable
+  candidate for a locked-down OT network with no general internet egress --
+  if that's true here, the Google Fonts @import silently fails and every
+  client falls back to the OS default with no error anywhere. Self-hosting
+  the two Poppins weights actually used (600/700, headers only) removes that
+  failure mode entirely. If Porta's network does allow general internet
+  egress, reverting to the CDN @import is a one-line change -- flagging the
+  tradeoff rather than silently picking a side.
+*/
+
+/* ---- Brand color ramp, derived from porta_logo_converted.png (#D01040, 100%
+   of opaque pixels) via HSL lightness steps -- see chat for the derivation.
+   Deliberately kept separate from the alarm/status palette below: an
+   operator should never have to wonder whether a red element means "Porta
+   branding" or "fault." ---- */
+:root {
+  --porta-primary: #D01040;
+  --porta-primary-hover: #A50D33;
+  --porta-primary-active: #8E0B2C;
+  --porta-primary-tint-10: #FABCCC;
+  --porta-primary-tint-20: #F7E8EC;
+
+  /* Status palette is NOT part of the brand ramp -- copied verbatim from the
+     architect skill's accessibility-vetted standard, not derived from brand
+     color, and must stay that way. */
+  --qc-status-good: #00C853;
+  --qc-status-warning: #FFD600;
+  --qc-status-fault: #FF1744;
+  --qc-status-standby: #2979FF;
+  --qc-status-maintenance: #9C27B0;
+
+  --porta-font-display: 'Poppins', 'Segoe UI', system-ui, sans-serif;
+  --porta-font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ---- Self-hosted Poppins, 600 & 700 only (header/button weights actually
+   used -- the reference's full import pulled 7 weights x 3 unicode ranges
+   for a table that only ever uses one). Point src at wherever the .woff2
+   files land under the Gateway's webserver/ mount; see DEPLOYMENT.md. ---- */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./porta-fonts/poppins-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./porta-fonts/poppins-700.woff2') format('woff2');
+}
+
+/* =============================================================================
+   .psc-porta-header  -- north dock / navigation shell background
+   ============================================================================= */
+.psc-porta-header {
+  background: var(--porta-primary);
+  color: #FFFFFF;
+  font-family: var(--porta-font-display);
+  font-weight: 600;
+}
+
+/* =============================================================================
+   .psc-porta-button-primary -- Enter/Submit actions
+   Contrast verified: white text on #D01040 = 5.48:1, clears WCAG AA's 4.5:1
+   floor for normal text (perspective-ux-design.md's own accessibility bar).
+   ============================================================================= */
+.psc-porta-button-primary {
+  background: var(--porta-primary);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--porta-font-body);
+  font-weight: 600;
+  min-width: 44px;
+  min-height: 44px; /* touch-target floor per perspective-ux-design.md */
+  transition: background-color 120ms ease-out;
+}
+.psc-porta-button-primary:hover {
+  background: var(--porta-primary-hover);
+}
+.psc-porta-button-primary:active {
+  background: var(--porta-primary-active);
+}
+
+/* Secondary / step buttons (the +/- controls) -- quieter than the primary
+   action so Enter remains the visually dominant action on every station. */
+.psc-porta-button-step {
+  background: #FFFFFF;
+  color: var(--porta-primary);
+  border: 1.5px solid var(--porta-primary);
+  border-radius: 8px;
+  font-family: var(--porta-font-body);
+  font-weight: 600;
+  min-width: 44px;
+  min-height: 44px;
+}
+.psc-porta-button-step:hover {
+  background: var(--porta-primary-tint-20);
+}
+.psc-porta-button-step:active {
+  background: var(--porta-primary-tint-10);
+}
+
+/* =============================================================================
+   .psc-porta-nav-item -- shell navigation entries, active-route highlight
+   ============================================================================= */
+.psc-porta-nav-item {
+  color: #FFFFFF;
+  font-family: var(--porta-font-body);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.psc-porta-nav-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.psc-porta-nav-item.psc-porta-nav-item--active {
+  background: rgba(255, 255, 255, 0.20);
+  font-weight: 600;
+  border-bottom: 3px solid #FFFFFF;
+}
+
+/* =============================================================================
+   .psc-porta-table -- alarm journal / history tables. Adapted directly from
+   the Modern Table reference's proven .psc-modern-table rules, recolored to
+   the Porta ramp and Ignition's own --neutral-* theme variables instead of
+   that example's hardcoded purple/pink. Internal ia_table__* class names are
+   unchanged from the reference -- confirmed working selectors, not guessed.
+   ============================================================================= */
+.psc-porta-table {
+  font-family: var(--porta-font-body);
+  border-top-right-radius: 10px;
+  border-top-left-radius: 10px;
+  border-bottom-right-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+.psc-porta-table .ia_table__head {
+  width: 100%;
+  background: var(--porta-primary);
+  color: #FFFFFF;
+  height: 44px;
+}
+.psc-porta-table .ia_table__head__header {
+  text-transform: capitalize;
+  font-size: 14px;
+  font-weight: 600;
+}
+.psc-porta-table .ia_table__body__row {
+  border-bottom: 1px solid var(--neutral-30);
+}
+.psc-porta-table .ia_table__body__row--odd,
+.psc-porta-table .ia_table__body__row--even {
+  background-color: #FFFFFF;
+}
+.psc-porta-table .ia_table__row:hover {
+  background-color: var(--porta-primary-tint-20);
+}
+.psc-porta-table .ia_pager {
+  background-color: var(--neutral-30);
+}
+.psc-porta-table .ia_pager__page--active {
+  background-color: var(--porta-primary);
+  border: 1px solid var(--porta-primary-active);
+}
+/* Alarm priority rows keep the standard status palette, not brand red --
+   this is the one place inside a Porta-styled table where deviating from
+   brand color on purpose is correct, not an inconsistency. */
+.psc-porta-table .qc-row-priority-critical,
+.psc-porta-table .qc-row-priority-high {
+  border-left: 4px solid var(--qc-status-fault);
+}
+.psc-porta-table .qc-row-priority-medium {
+  border-left: 4px solid var(--qc-status-warning);
+}
+
+/* Responsive breakpoint, carried forward from the Modern Table reference --
+   genuinely useful for a tablet propped up at a dryer station. */
+@media (max-width: 576px) {
+  .psc-porta-table .ia_table__headContainer { display: none; }
+  .psc-porta-table .ia_table__cell { width: 100% !important; padding-left: 15%; }
+  .psc-porta-table .ia_table__cell:before {
+    content: attr(data-column-id) ":";
+    text-transform: capitalize;
+    padding-right: 5px;
+    color: var(--porta-primary);
+  }
+}
