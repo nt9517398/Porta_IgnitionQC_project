@@ -1,0 +1,274 @@
+{
+  "custom": {
+    "lastSubmitMessage": {
+      "value": ""
+    },
+    "lastSubmitSuccess": {
+      "value": true
+    }
+  },
+  "root": {
+    "type": "ia.container.flex",
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "padding": "24px",
+        "gap": "16px"
+      }
+    },
+    "children": [
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "header"
+        },
+        "position": {
+          "basis": "36px"
+        },
+        "props": {
+          "text": "Dryer infeed quality control",
+          "style": {
+            "fontSize": "20px",
+            "fontWeight": "600",
+            "color": "var(--porta-primary)",
+            "classes": []
+          }
+        }
+      },
+      {
+        "type": "ia.container.flex",
+        "meta": {
+          "name": "measurementRow"
+        },
+        "position": {
+          "basis": "80px"
+        },
+        "props": {
+          "direction": "row",
+          "wrap": "wrap",
+          "style": {
+            "gap": "16px"
+          }
+        },
+        "children": [
+          {
+            "type": "ia.embeddedview",
+            "meta": {
+              "name": "field_Thickness1"
+            },
+            "position": {
+              "basis": "160px"
+            },
+            "props": {
+              "path": "components/measurement_field",
+              "params": {
+                "tagPath": "[default]PortaPlywood/QualityControl/MYRTLEFORD_L1/DryerInfeed/Pending/Thickness1",
+                "label": "Thickness 1",
+                "unit": "mm",
+                "step": 0.01,
+                "decimals": 2
+              }
+            }
+          },
+          {
+            "type": "ia.embeddedview",
+            "meta": {
+              "name": "field_Thickness2"
+            },
+            "position": {
+              "basis": "160px"
+            },
+            "props": {
+              "path": "components/measurement_field",
+              "params": {
+                "tagPath": "[default]PortaPlywood/QualityControl/MYRTLEFORD_L1/DryerInfeed/Pending/Thickness2",
+                "label": "Thickness 2",
+                "unit": "mm",
+                "step": 0.01,
+                "decimals": 2
+              }
+            }
+          },
+          {
+            "type": "ia.embeddedview",
+            "meta": {
+              "name": "field_Thickness3"
+            },
+            "position": {
+              "basis": "160px"
+            },
+            "props": {
+              "path": "components/measurement_field",
+              "params": {
+                "tagPath": "[default]PortaPlywood/QualityControl/MYRTLEFORD_L1/DryerInfeed/Pending/Thickness3",
+                "label": "Thickness 3",
+                "unit": "mm",
+                "step": 0.01,
+                "decimals": 2
+              }
+            }
+          },
+          {
+            "type": "ia.embeddedview",
+            "meta": {
+              "name": "field_Width"
+            },
+            "position": {
+              "basis": "160px"
+            },
+            "props": {
+              "path": "components/measurement_field",
+              "params": {
+                "tagPath": "[default]PortaPlywood/QualityControl/MYRTLEFORD_L1/DryerInfeed/Pending/Width",
+                "label": "Width",
+                "unit": "mm",
+                "step": 1.0,
+                "decimals": 0
+              }
+            }
+          },
+          {
+            "type": "ia.embeddedview",
+            "meta": {
+              "name": "field_MoistureMin"
+            },
+            "position": {
+              "basis": "160px"
+            },
+            "props": {
+              "path": "components/measurement_field",
+              "params": {
+                "tagPath": "[default]PortaPlywood/QualityControl/MYRTLEFORD_L1/DryerInfeed/Pending/MoistureMin",
+                "label": "Moisture min",
+                "unit": "%",
+                "step": 0.1,
+                "decimals": 1
+              }
+            }
+          },
+          {
+            "type": "ia.embeddedview",
+            "meta": {
+              "name": "field_MoistureMax"
+            },
+            "position": {
+              "basis": "160px"
+            },
+            "props": {
+              "path": "components/measurement_field",
+              "params": {
+                "tagPath": "[default]PortaPlywood/QualityControl/MYRTLEFORD_L1/DryerInfeed/Pending/MoistureMax",
+                "label": "Moisture max",
+                "unit": "%",
+                "step": 0.1,
+                "decimals": 1
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "ia.container.flex",
+        "meta": {
+          "name": "actionRow"
+        },
+        "position": {
+          "basis": "56px"
+        },
+        "props": {
+          "direction": "row",
+          "alignItems": "center",
+          "style": {
+            "gap": "16px"
+          }
+        },
+        "children": [
+          {
+            "type": "ia.input.button",
+            "meta": {
+              "name": "enterButton"
+            },
+            "position": {
+              "basis": "140px"
+            },
+            "props": {
+              "text": "Enter",
+              "style": {
+                "fontSize": "16px",
+                "classes": [
+                  "porta-button-primary"
+                ]
+              }
+            },
+            "events": {
+              "dom": {
+                "onClick": {
+                  "config": {
+                    "script": "import QC\n\tparamMap = {\"thickness1\": \"Pending/Thickness1\", \"thickness2\": \"Pending/Thickness2\", \"thickness3\": \"Pending/Thickness3\", \"width\": \"Pending/Width\", \"moistureMin\": \"Pending/MoistureMin\", \"moistureMax\": \"Pending/MoistureMax\"}\n\textraParams = {\"stagePosition\": \"INFEED\"}\n\tsuccess, message = QC.submit_measurement(\n\t    stationPath='[default]PortaPlywood/QualityControl/MYRTLEFORD_L1/DryerInfeed',\n\t    queryPath='qc/dryer/insert_record',\n\t    projectName='site_quality_control',\n\t    paramMap=paramMap,\n\t    extraParams=extraParams,\n\t    operatorId=self.session.props.auth.user.userName,\n\t    shiftCode=self.session.custom.activeShift,\n\t    lineId='MYRTLEFORD_L1'\n\t)\n\tself.view.custom.lastSubmitMessage = message\n\tself.view.custom.lastSubmitSuccess = success"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "ia.display.label",
+            "meta": {
+              "name": "statusLabel"
+            },
+            "position": {
+              "basis": "grow"
+            },
+            "propConfig": {
+              "props.text": {
+                "binding": {
+                  "type": "property",
+                  "config": {
+                    "path": "view.custom.lastSubmitMessage"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "ia.display.label",
+        "meta": {
+          "name": "lastEntryLabel"
+        },
+        "position": {
+          "basis": "20px"
+        },
+        "props": {
+          "style": {
+            "fontSize": "12px"
+          }
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "type": "tag",
+              "config": {
+                "path": "[default]PortaPlywood/QualityControl/MYRTLEFORD_L1/DryerInfeed/LastEntryOperator",
+                "mode": "direct"
+              },
+              "transforms": [
+                {
+                  "type": "expression",
+                  "expression": "\"Last entry by \" + {value}"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "meta": {
+    "name": "dryer_infeed",
+    "parentPath": "dryer_infeed"
+  }
+}

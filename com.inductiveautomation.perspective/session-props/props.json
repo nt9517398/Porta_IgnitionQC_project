@@ -1,0 +1,16 @@
+{
+  "props": {
+    "theme": "light",
+    "timeZoneId": "Australia/Sydney"
+  },
+  "custom": {
+    "activeShift": {
+      "value": "DAY"
+    }
+  },
+  "propConfig": {
+    "custom.activeShift": {
+      "persistent": false
+    }
+  }
+}
