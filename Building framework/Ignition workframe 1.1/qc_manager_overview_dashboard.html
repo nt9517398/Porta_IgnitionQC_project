@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Porta QC Manager Process Control Dashboard</title>
+    <!-- Tailwind CSS Engine -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'porta-red': '#D7194B',
+                        'dark-charcoal': '#343A40',
+                        'light-grey': '#F3F3F3',
+                        'mid-grey': '#A6A6A6',
+                        'warning-yellow': '#FFF200',
+                        'positive-green': '#00E62E',
+                        'review-purple': '#9999FF',
+                        'failure-red': '#E53935',
+                        'alert-amber': '#FFBF00',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #E2E8F0;
+        }
+
+        /* Pulsing beacon glow animations for attention alerts */
+        @keyframes alertGlowPulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(229, 57, 53, 0);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(229, 57, 53, 0.35);
+                transform: scale(1.03);
+            }
+        }
+        
+        .beacon-active-fail {
+            animation: alertGlowPulse 1.5s infinite ease-in-out;
+        }
+
+        /* Standard transitions for dashboard elements */
+        .dashboard-transition {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Custom Scrollbar for dashboard listings */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F3F3F3;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #A6A6A6;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #7F8C8D;
+        }
+    </style>
+</head>
+<body class="p-3 md:p-6 text-dark-charcoal selection:bg-porta-red selection:text-white">
+
+    <div class="max-w-7xl mx-auto bg-white shadow-2xl rounded-lg overflow-hidden border border-mid-grey">
+        
+        <!-- ==========================================================================
+             1. MASTER TELEMETRY BRAND HEADER
+             ========================================================================== -->
+        <header class="bg-white border-b-2 border-mid-grey px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-porta-red text-3xl font-black tracking-tighter lowercase select-none">porta</span>
+                <span class="w-[2px] h-6 bg-mid-grey hidden md:block"></span>
+                <h1 class="text-dark-charcoal font-black text-sm md:text-base tracking-wider uppercase">
+                    QC Process Control Dashboard
+                </h1>
+            </div>
+            
+            <!-- Global runtime stats and clock telemetry -->
+            <div class="flex flex-wrap items-center justify-center gap-4 text-xs">
+                <div class="bg-light-grey px-3 py-1.5 rounded border border-mid-grey">
+                    Facility: <strong class="text-black font-semibold">Myrtleford Processing</strong>
+                </div>
+                <div class="bg-light-grey px-3 py-1.5 rounded border border-mid-grey">
+                    Shift Period: <strong id="active-shift" class="text-black font-semibold">Day Shift (06:00 - 18:00)</strong>
+                </div>
+                <div class="bg-light-grey px-3 py-1.5 rounded border border-mid-grey">
+                    Active User: <strong class="text-black font-semibold">M. Patterson (QC Manager)</strong>
+                </div>
+                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded border-2 border-positive-green text-positive-green font-bold text-[10px] uppercase select-none tracking-wider">
+                    <span class="w-2 h-2 rounded-full bg-positive-green animate-ping"></span>
+                    Gateway Sync OK
+                </div>
+            </div>
+        </header>
+
+        <!-- ==========================================================================
+             2. DYNAMIC CLIENT ROUTING TABS
+             ========================================================================== -->
+        <nav class="bg-dark-charcoal text-white flex flex-wrap justify-between items-center px-4 py-2 border-b border-slate-700">
+            <div class="flex flex-wrap gap-1" id="nav-tab-container">
+                <button onclick="switchTab('overview')" id="btn-tab-overview" class="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded transition-all duration-150 bg-porta-red text-white">
+                    Overview
+                </button>
+                <button onclick="switchTab('exceptions')" id="btn-tab-exceptions" class="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded transition-all duration-150 hover:bg-slate-700 text-slate-300">
+                    Live Exception Queue
+                </button>
+                <button onclick="switchTab('hold')" id="btn-tab-hold" class="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded transition-all duration-150 hover:bg-slate-700 text-slate-300 flex items-center gap-1.5">
+                    Hold Register
+                    <span id="hold-count-badge" class="px-1.5 py-0.5 bg-review-purple text-dark-charcoal text-[10px] font-black rounded-full leading-none">3</span>
+                </button>
+                <button onclick="switchTab('trends')" id="btn-tab-trends" class="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded transition-all duration-150 hover:bg-slate-700 text-slate-300">
+                    Compliance & Trends
+                </button>
+                <button onclick="switchTab('admin')" id="btn-tab-admin" class="px-4 py-2 text-xs font-bold uppercase tracking-wider rounded transition-all duration-150 hover:bg-slate-700 text-slate-300">
+                    Specification Editor
+                </button>
+            </div>
+            
+            <div class="hidden sm:flex items-center gap-2 text-[10px] text-slate-400 font-semibold uppercase select-none">
+                <span>System Time:</span>
+                <span id="live-clock" class="font-mono text-white text-xs">16/07/2026 19:15:43</span>
+            </div>
+        </nav>
+
+        <!-- ==========================================================================
+             3. SIMULATION CONTROLS BAR (Manager Prototyping Panel)
+             ========================================================================== -->
+        <div class="bg-slate-800 text-white px-6 py-3 border-b border-slate-700 flex flex-wrap justify-between items-center gap-4 shadow-inner">
+            <div class="flex items-center gap-2 text-xs">
+                <span class="bg-slate-700 text-slate-300 px-2.5 py-1 rounded font-bold uppercase text-[9px] tracking-wider">Manager Simulator Controls</span>
+                <span class="text-slate-400 text-[11px] hidden md:inline">Test plant-wide alerts, exceptions, and auto-dispositions instantly:</span>
+            </div>
+            <div class="flex flex-wrap gap-2 text-xs">
+                <button onclick="injectScenario('baseline')" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded font-bold transition active:scale-95 shadow-sm">
+                    Baseline: All Controlled
+                </button>
+                <button onclick="injectScenario('crisis')" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded font-bold transition active:scale-95 shadow-sm">
+                    Crisis: High Variance
+                </button>
+                <div class="flex items-center gap-2 ml-2 border-l border-slate-600 pl-4">
+                    <input type="checkbox" id="live-data-feed" onchange="toggleLiveDataFeed()" class="rounded text-porta-red focus:ring-porta-red h-4 w-4 bg-slate-900 border-slate-700">
+                    <label for="live-data-feed" class="font-bold text-[11px] text-slate-300 cursor-pointer uppercase tracking-wider select-none">Live Telemetry Feed (OPC-UA)</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================================================
+             4. CORE METRICS RIBBON LAYER
+             ========================================================================== -->
+        <section class="grid grid-cols-2 lg:grid-cols-5 gap-4 p-4 md:p-6 bg-slate-50 border-b border-mid-grey">
+            
+            <!-- KPI 1: Checks Due -->
+            <div class="bg-white p-4 rounded-lg border-l-4 border-positive-green shadow-sm flex flex-col justify-between">
+                <div>
+                    <span class="block text-[10px] text-gray-500 font-bold uppercase tracking-wider">Shift Checks Completed</span>
+                    <strong id="kpi-checks-ratio" class="block text-2xl font-black text-dark-charcoal mt-1">38 / 42</strong>
+                </div>
+                <span class="text-[10px] text-gray-400 mt-2 block font-medium">90.4% Floor Compliance</span>
+            </div>
+
+            <!-- KPI 2: Overdue Checks -->
+            <div id="kpi-overdue-card" class="bg-white p-4 rounded-lg border-l-4 border-alert-amber shadow-sm flex flex-col justify-between">
+                <div>
+                    <span class="block text-[10px] text-gray-500 font-bold uppercase tracking-wider">Overdue Checks</span>
+                    <strong id="kpi-overdue-val" class="block text-2xl font-black text-dark-charcoal mt-1">4</strong>
+                </div>
+                <span class="text-[10px] text-gray-400 mt-2 block font-medium">Across 3 active stations</span>
+            </div>
+
+            <!-- KPI 3: Open Exceptions -->
+            <div id="kpi-exceptions-card" class="bg-white p-4 rounded-lg border-l-4 border-failure-red shadow-sm flex flex-col justify-between">
+                <div>
+                    <span class="block text-[10px] text-gray-500 font-bold uppercase tracking-wider">Open Exceptions</span>
+                    <strong id="kpi-exceptions-val" class="block text-2xl font-black text-dark-charcoal mt-1">7</strong>
+                </div>
+                <span class="text-[10px] text-failure-red mt-2 block font-bold" id="kpi-exceptions-subtitle">2 Designated Critical</span>
+            </div>
+
+            <!-- KPI 4: Hold Register -->
+            <div class="bg-white p-4 rounded-lg border-l-4 border-review-purple shadow-sm flex flex-col justify-between">
+                <div>
+                    <span class="block text-[10px] text-gray-500 font-bold uppercase tracking-wider">Packs On Quarantine Hold</span>
+                    <strong id="kpi-hold-val" class="block text-2xl font-black text-dark-charcoal mt-1">3</strong>
+                </div>
+                <span class="text-[10px] text-gray-400 mt-2 block font-medium">Awaiting Manager Disposition</span>
+            </div>
+
+            <!-- KPI 5: Calibrations Due -->
+            <div class="bg-white p-4 rounded-lg border-l-4 border-orange-500 shadow-sm flex flex-col justify-between">
+                <div>
+                    <span class="block text-[10px] text-gray-500 font-bold uppercase tracking-wider">Calibration Windows Due</span>
+                    <strong class="block text-2xl font-black text-dark-charcoal mt-1">2</strong>
+                </div>
+                <span class="text-[10px] text-orange-600 mt-2 block font-bold">Required within 7 days</span>
+            </div>
+
+        </section>
+
+        <!-- ==========================================================================
+             5. TAB WORKSPACE CONTAINER (MAIN CONTENT AREAS)
+             ========================================================================== -->
+        <main class="bg-light-grey p-4 md:p-6 min-h-[500px]">
+
+            <!-- ==========================================================================
+                 TAB A: OVERVIEW SYSTEM (Main Dashboard Visual Split)
+                 ========================================================================== -->
+            <div id="tab-content-overview" class="space-y-6">
+                
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    
+                    <!-- LEFT COLUMN: Live Exception Queue & Focus Context Card (7/12) -->
+                    <div class="lg:col-span-7 flex flex-col gap-6">
+                        
+                        <div class="bg-white border border-mid-grey rounded-lg p-4 shadow-md">
+                            <div class="flex justify-between items-center border-b border-light-grey pb-3 mb-4">
+                                <h2 class="font-bold text-xs tracking-wider text-dark-charcoal uppercase flex items-center gap-2">
+                                    <span class="w-2.5 h-4 bg-porta-red rounded-sm"></span>
+                                    Live Exception Queue (Awaiting Actions)
+                                </h2>
+                                <span class="text-[11px] text-gray-400 font-bold uppercase">Real-Time Sync</span>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs border border-mid-grey rounded overflow-hidden">
+                                    <thead>
+                                        <tr class="bg-dark-charcoal text-white uppercase text-[9px] tracking-wide select-none">
+                                            <th class="p-2 border border-mid-grey">Age</th>
+                                            <th class="p-2 border border-mid-grey">Station</th>
+                                            <th class="p-2 border border-mid-grey">Pack / Load ID</th>
+                                            <th class="p-2 border border-mid-grey">Characteristic</th>
+                                            <th class="p-2 border border-mid-grey">Reading</th>
+                                            <th class="p-2 border border-mid-grey">State Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="overview-exceptions-tbody" class="font-mono text-[11px] font-semibold cursor-pointer">
+                                        <!-- Dynamically Populated Rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- ISOLATED DETAIL CARD: Clean design prevents layered text collision -->
+                            <div id="selected-exception-card" class="mt-4 bg-white border-2 border-mid-grey rounded-lg p-4 shadow-xl select-none relative z-50 transition-all duration-300">
+                                <div class="flex justify-between items-center border-b border-light-grey pb-2 mb-2">
+                                    <span class="text-[10px] font-black uppercase text-dark-charcoal tracking-widest flex items-center gap-1.5">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping"></span>
+                                        Active Audit Focus Context
+                                    </span>
+                                    <span id="audit-log-id" class="text-[10px] font-mono text-gray-500 font-bold">LAT-20260716-0042</span>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-700">
+                                    <div class="space-y-1.5">
+                                        <div><span class="font-bold text-gray-500">Evaluation Result:</span> <span id="audit-status" class="text-failure-red font-black uppercase">CRITICAL THICKNESS BREACH</span></div>
+                                        <div><span class="font-bold text-gray-500">Target Range:</span> <span id="audit-limits" class="font-mono text-gray-900 font-semibold">3.01 mm - 3.33 mm</span></div>
+                                        <div><span class="font-bold text-gray-500">Recorded Reading:</span> <span id="audit-reading" class="font-mono font-bold text-gray-900">2.94 mm (LHS Caliper)</span></div>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <div><span class="font-bold text-gray-500">Variance Offset:</span> <span id="audit-variance" class="text-slate-600 font-bold">-0.07 mm below structural floor</span></div>
+                                        <div><span class="font-bold text-gray-500">Mitigation Workflow:</span> <span id="audit-workflow" class="text-alert-amber font-bold">Recheck 1 Log Sequence Triggered</span></div>
+                                        <div class="text-[9px] text-gray-400 font-bold mt-2">Submitted Timestamp: <span id="audit-timestamp" class="font-mono">16/07/2026 10:08:43</span></div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 pt-3 border-t border-light-grey flex flex-wrap gap-2 justify-end">
+                                    <button onclick="requestCorrectionRecheck()" class="bg-light-grey hover:bg-gray-200 text-dark-charcoal border border-mid-grey px-3 py-1.5 rounded font-black text-[10px] uppercase transition active:scale-95">
+                                        Request Recheck
+                                    </button>
+                                    <button onclick="scraplsolatedPack()" class="bg-failure-red hover:bg-red-600 text-white px-3 py-1.5 rounded font-black text-[10px] uppercase transition active:scale-95">
+                                        Reject & Scrap Pack
+                                    </button>
+                                    <button onclick="releaseIsolatedPack()" class="bg-positive-green hover:bg-[#00c825] text-white px-3 py-1.5 rounded-lg font-black text-[10px] uppercase transition active:scale-95">
+                                        Authorize Release
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Shift Compliance Overview & Pareto Chart (5/12) -->
+                    <div class="lg:col-span-5 flex flex-col gap-6">
+                        
+                        <div class="bg-white border border-mid-grey rounded-lg p-4 shadow-md flex-1">
+                            <div class="border-b border-light-grey pb-3 mb-4">
+                                <h2 class="font-bold text-xs tracking-wider text-dark-charcoal uppercase flex items-center gap-2">
+                                    <span class="w-2.5 h-4 bg-dark-charcoal rounded-sm"></span>
+                                    Shift Compliance By Production Area
+                                </h2>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between text-[11px] font-bold text-gray-600 uppercase mb-1">
+                                        <span>Lathe Outfeed Production Line</span>
+                                        <span id="progress-val-lathe" class="font-mono font-semibold">92%</span>
+                                    </div>
+                                    <div class="w-full bg-light-grey h-3.5 rounded border border-mid-grey overflow-hidden relative">
+                                        <div id="progress-bar-lathe" class="bg-positive-green h-full transition-all duration-500 rounded-l" style="width: 92%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between text-[11px] font-bold text-gray-600 uppercase mb-1">
+                                        <span>Dryer Moisture Controls Section</span>
+                                        <span id="progress-val-dryer" class="font-mono font-semibold">86%</span>
+                                    </div>
+                                    <div class="w-full bg-light-grey h-3.5 rounded border border-mid-grey overflow-hidden relative">
+                                        <div id="progress-bar-dryer" class="bg-alert-amber h-full transition-all duration-500 rounded-l" style="width: 86%"></div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between text-[11px] font-bold text-gray-600 uppercase mb-1">
+                                        <span>Veneer Composer Assembly Systems</span>
+                                        <span id="progress-val-composer" class="font-mono font-semibold">100%</span>
+                                    </div>
+                                    <div class="w-full bg-light-grey h-3.5 rounded border border-mid-grey overflow-hidden relative">
+                                        <div id="progress-bar-composer" class="bg-positive-green h-full transition-all duration-500 rounded-l" style="width: 100%"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Pareto Chart of 7-Day Failures (SVG-based high quality mockup) -->
+                            <div class="mt-6 pt-6 border-t border-light-grey">
+                                <h3 class="text-xs font-black uppercase text-dark-charcoal mb-4 tracking-wider">Top Failure Modes (Rolling 7-Day Period)</h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-24 text-[10px] font-bold text-gray-600 uppercase">Thickness Variance</span>
+                                        <div class="flex-1 bg-light-grey h-4 rounded overflow-hidden">
+                                            <div id="pareto-thickness" class="bg-porta-red h-full transition-all duration-500" style="width: 90%"></div>
+                                        </div>
+                                        <span id="pareto-val-thickness" class="w-6 text-right font-mono font-black text-xs">14</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-24 text-[10px] font-bold text-gray-600 uppercase">Moisture Out-Of-Spec</span>
+                                        <div class="flex-1 bg-light-grey h-4 rounded overflow-hidden">
+                                            <div id="pareto-moisture" class="bg-porta-red h-full transition-all duration-500 opacity-80" style="width: 60%"></div>
+                                        </div>
+                                        <span id="pareto-val-moisture" class="w-6 text-right font-mono font-black text-xs">9</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-24 text-[10px] font-bold text-gray-600 uppercase">Clipping Width Error</span>
+                                        <div class="flex-1 bg-light-grey h-4 rounded overflow-hidden">
+                                            <div id="pareto-width" class="bg-porta-red h-full transition-all duration-500 opacity-60" style="width: 40%"></div>
+                                        </div>
+                                        <span id="pareto-val-width" class="w-6 text-right font-mono font-black text-xs">6</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ==========================================================================
+                     BOTTOM PANEL: MASTER PROCESS STATUS MATRIX
+                     ========================================================================== -->
+                <div class="bg-white border border-mid-grey rounded-lg p-4 shadow-md">
+                    <div class="border-b border-light-grey pb-3 mb-4">
+                        <h2 class="font-bold text-xs tracking-wider text-dark-charcoal uppercase flex items-center gap-2">
+                            <span class="w-2.5 h-4 bg-dark-charcoal rounded-sm"></span>
+                            Master Process Area Status Matrix
+                        </h2>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border border-mid-grey rounded overflow-hidden">
+                            <thead>
+                                <tr class="bg-dark-charcoal text-white uppercase text-[9px] tracking-wide select-none">
+                                    <th class="p-2 border border-mid-grey">Production Target Area</th>
+                                    <th class="p-2 border border-mid-grey text-center">Active Shift Logs Complete</th>
+                                    <th class="p-2 border border-mid-grey">Next Inspection Interval</th>
+                                    <th class="p-2 border border-mid-grey">Open Log Issues</th>
+                                    <th class="p-2 border border-mid-grey text-center">Quarantined Packs</th>
+                                    <th class="p-2 border border-mid-grey text-center">Current Station Health Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="font-medium">
+                                <tr class="border-b border-mid-grey">
+                                    <td class="p-3 font-bold border border-mid-grey">Lathe Outfeed Production Line</td>
+                                    <td class="p-3 text-center font-mono border border-mid-grey" id="matrix-lathe-logs">8 / 9 Checks</td>
+                                    <td class="p-3 border border-mid-grey">Due Now (Scheduled Hourly Check Interval)</td>
+                                    <td class="p-3 text-failure-red font-bold border border-mid-grey" id="matrix-lathe-issues">1 Pending Recheck</td>
+                                    <td class="p-3 text-center font-mono font-bold text-blue-700 border border-mid-grey" id="matrix-lathe-holds">1 Pack</td>
+                                    <td class="p-3 text-center border border-mid-grey">
+                                        <span id="matrix-badge-lathe" class="px-2 py-1 bg-rose-100 text-failure-red font-black text-[9px] rounded uppercase tracking-wide">Action Required</span>
+                                    </td>
+                                </tr>
+                                <tr class="border-b border-mid-grey bg-gray-50">
+                                    <td class="p-3 font-bold border border-mid-grey">Dryer Moisture Controls Section</td>
+                                    <td class="p-3 text-center font-mono border border-mid-grey">16 / 16 Checks</td>
+                                    <td class="p-3 border border-mid-grey">Next Shift Interval</td>
+                                    <td class="p-3 text-emerald-600 font-bold border border-mid-grey">0 Issues</td>
+                                    <td class="p-3 text-center font-mono font-bold border border-mid-grey">0 Packs</td>
+                                    <td class="p-3 text-center border border-mid-grey">
+                                        <span class="px-2 py-1 bg-emerald-100 text-positive-green font-black text-[9px] rounded uppercase tracking-wide">Controlled Baseline</span>
+                                    </td>
+                                </tr>
+                                <tr class="border-b border-mid-grey">
+                                    <td class="p-3 font-bold border border-mid-grey">Veneer Composer Assembly Systems</td>
+                                    <td class="p-3 text-center font-mono border border-mid-grey">22 Event Logs</td>
+                                    <td class="p-3 border border-mid-grey">Triggered per production batch run</td>
+                                    <td class="p-3 text-amber-600 font-bold border border-mid-grey">1 Active Notification</td>
+                                    <td class="p-3 text-center font-mono font-bold border border-mid-grey">0 Packs</td>
+                                    <td class="p-3 text-center border border-mid-grey">
+                                        <span class="px-2 py-1 bg-amber-100 text-alert-amber font-black text-[9px] rounded uppercase tracking-wide">Watch Limits Caution</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ==========================================================================
+                 TAB B: FULL EXCEPTIONS QUEUE VIEW
+                 ========================================================================== -->
+            <div id="tab-content-exceptions" class="hidden space-y-6">
+                <div class="bg-white border border-mid-grey rounded-lg p-6 shadow-md">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-light-grey pb-4 mb-4 gap-4">
+                        <div>
+                            <h2 class="font-bold text-sm tracking-wider text-dark-charcoal uppercase flex items-center gap-2">
+                                <span class="w-2.5 h-4 bg-porta-red rounded-sm"></span>
+                                Plant-Wide Exception Log Registry
+                            </h2>
+                            <p class="text-xs text-gray-500 mt-1">Audit log tracking all failed and borderline parameters flagged at physical inspection terminals.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="exception-search" oninput="filterExceptionsTable()" placeholder="Filter by ID/Pack/Station..." class="px-3 py-1.5 text-xs font-semibold border border-mid-grey rounded focus:outline-none focus:ring-1 focus:ring-porta-red">
+                            <select id="exception-severity-filter" onchange="filterExceptionsTable()" class="px-3 py-1.5 text-xs font-bold border border-mid-grey rounded focus:outline-none focus:ring-1 focus:ring-porta-red">
+                                <option value="ALL">All Severities</option>
+                                <option value="CRITICAL">Critical Breaches</option>
+                                <option value="WARNING">Warnings</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border border-mid-grey rounded overflow-hidden">
+                            <thead>
+                                <tr class="bg-dark-charcoal text-white uppercase text-[9px] tracking-wide select-none">
+                                    <th class="p-3 border border-mid-grey">Exception Timestamp</th>
+                                    <th class="p-3 border border-mid-grey">Inspection ID</th>
+                                    <th class="p-3 border border-mid-grey">Production Station</th>
+                                    <th class="p-3 border border-mid-grey">Pack / Batch ID</th>
+                                    <th class="p-3 border border-mid-grey">Target Parameter</th>
+                                    <th class="p-3 border border-mid-grey">Logged Reading</th>
+                                    <th class="p-3 border border-mid-grey">Engineering Range Limit</th>
+                                    <th class="p-3 border border-mid-grey">Variance Deviation</th>
+                                    <th class="p-3 border border-mid-grey">Status State</th>
+                                </tr>
+                            </thead>
+                            <tbody id="full-exceptions-tbody" class="font-mono text-xs font-bold">
+                                <!-- Populated dynamically by javascript state -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==========================================================================
+                 TAB C: QUARANTINE HOLD REGISTER
+                 ========================================================================== -->
+            <div id="tab-content-hold" class="hidden space-y-6">
+                <div class="bg-white border border-mid-grey rounded-lg p-6 shadow-md">
+                    <div class="border-b border-light-grey pb-4 mb-4">
+                        <h2 class="font-bold text-sm tracking-wider text-dark-charcoal uppercase flex items-center gap-2">
+                            <span class="w-2.5 h-4 bg-review-purple rounded-sm"></span>
+                            Material Quarantine and Hold Registry Ledger
+                        </h2>
+                        <p class="text-xs text-gray-500 mt-1">Quarantined batch inventory awaiting engineering review, salvage disposition, or scrappage authorization.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        
+                        <!-- Quarantine List Column (2/3 width) -->
+                        <div class="lg:col-span-2 space-y-3" id="hold-packs-list-container">
+                            <!-- Populated Dynamically with custom styled components -->
+                        </div>
+
+                        <!-- Disposition Detail / Actions Board Column (1/3 width) -->
+                        <div class="bg-slate-50 border border-mid-grey rounded-lg p-4 h-fit">
+                            <h3 class="font-black text-xs text-dark-charcoal uppercase tracking-wider mb-3 pb-2 border-b border-gray-200">
+                                Quarantine Disposition Authorization Board
+                            </h3>
+                            
+                            <div id="hold-no-selection" class="py-12 text-center text-xs text-gray-400 font-semibold uppercase tracking-wider">
+                                Select a quarantined pack from the ledger list to authorize release, scrap, or downgrade.
+                            </div>
+
+                            <div id="hold-action-panel" class="hidden space-y-4 text-xs text-slate-700">
+                                <div class="bg-white p-3 rounded border border-mid-grey font-mono text-[11px] space-y-2">
+                                    <div><span class="font-bold text-gray-500">Log Reference:</span> <strong id="hold-detail-id" class="text-black">LAT-HOLD-41</strong></div>
+                                    <div><span class="font-bold text-gray-500">Pack ID Tag:</span> <strong id="hold-detail-pack" class="text-black">P-042</strong></div>
+                                    <div><span class="font-bold text-gray-500">Station Orig:</span> <strong id="hold-detail-station" class="text-black">Lathe Outfeed</strong></div>
+                                    <div><span class="font-bold text-gray-500">Non-Conformance:</span> <strong id="hold-detail-reason" class="text-failure-red">Left Caliper (2.94mm) Out of Spec</strong></div>
+                                    <div><span class="font-bold text-gray-500">Logged Time:</span> <strong id="hold-detail-timestamp" class="text-black">16/07/2026 10:08:43</strong></div>
+                                </div>
+
+                                <div class="space-y-1.5">
+                                    <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-600">Engineering Authorization Notes (Required)</label>
+                                    <textarea id="hold-comment-input" rows="3" placeholder="Specify root cause findings, machine adjustments, or grade mitigation details..." class="w-full border border-mid-grey p-2 rounded text-xs font-medium focus:outline-none focus:ring-1 focus:ring-porta-red"></textarea>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-2 pt-2 border-t border-gray-200">
+                                    <button onclick="dispositionPack('RELEASE')" class="w-full bg-positive-green hover:bg-emerald-500 text-white py-2 rounded font-black uppercase tracking-wider text-xs transition duration-150 active:scale-95">
+                                        Release Pack to Production Run
+                                    </button>
+                                    <button onclick="dispositionPack('DOWNGRADE')" class="w-full bg-alert-amber hover:bg-amber-400 text-dark-charcoal py-2 rounded font-black uppercase tracking-wider text-xs transition duration-150 active:scale-95">
+                                        Downgrade Material Quality Class
+                                    </button>
+                                    <button onclick="dispositionPack('SCRAP')" class="w-full bg-failure-red hover:bg-red-600 text-white py-2 rounded font-black uppercase tracking-wider text-xs transition duration-150 active:scale-95">
+                                        Decommission and Scrap Pack
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==========================================================================
+                 TAB D: COMPLIANCE & TRENDS ANALYTICS
+                 ========================================================================== -->
+            <div id="tab-content-trends" class="hidden space-y-6">
+                <div class="bg-white border border-mid-grey rounded-lg p-6 shadow-md">
+                    <div class="border-b border-light-grey pb-4 mb-6">
+                        <h2 class="font-bold text-sm tracking-wider text-dark-charcoal uppercase flex items-center gap-2">
+                            <span class="w-2.5 h-4 bg-dark-charcoal rounded-sm"></span>
+                            Continuous Compliance Variance Trends
+                        </h2>
+                        <p class="text-xs text-gray-500 mt-1">Interactive trend visualisations showing run-by-run process performance against specifications.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        
+                        <!-- Mock Trend Chart Container (SVG-based) -->
+                        <div class="lg:col-span-8 bg-slate-50 border border-mid-grey rounded-lg p-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <span class="text-xs font-bold uppercase text-dark-charcoal tracking-wide flex items-center gap-1.5">
+                                    <span class="w-2.5 h-2.5 bg-porta-red rounded-full"></span>
+                                    Lathe Outfeed Caliper Thickness (LHS Position 30-Run Window)
+                                </span>
+                                <span class="text-[10px] bg-slate-200 px-2 py-0.5 rounded font-mono font-bold">Specs: 3.01mm - 3.33mm</span>
+                            </div>
+
+                            <!-- Animated SVG Line Chart -->
+                            <div class="relative w-full h-64 bg-white border border-mid-grey rounded p-2">
+                                <svg id="trend-svg" class="w-full h-full" viewBox="0 0 600 240" preserveAspectRatio="none">
+                                    <!-- Specification limits lines -->
+                                    <line x1="0" y1="40" x2="600" y2="40" stroke="#E53935" stroke-dasharray="4" stroke-width="1.5" /> <!-- Max spec -->
+                                    <line x1="0" y1="200" x2="600" y2="200" stroke="#E53935" stroke-dasharray="4" stroke-width="1.5" /> <!-- Min spec -->
+                                    <line x1="0" y1="120" x2="600" y2="120" stroke="#00E62E" stroke-dasharray="2" stroke-width="1" /> <!-- Target -->
+                                    
+                                    <text x="5" y="32" fill="#E53935" font-size="9" font-weight="bold">Max limit: 3.33mm</text>
+                                    <text x="5" y="112" fill="#00E62E" font-size="9" font-weight="bold">Target Center: 3.22mm</text>
+                                    <text x="5" y="215" fill="#E53935" font-size="9" font-weight="bold">Min limit: 3.01mm</text>
+
+                                    <!-- Trend Graph Plot Line -->
+                                    <path id="trend-line-path" d="M 0 115" fill="none" stroke="#D7194B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                                    <!-- Dynamically Injected Circles and Hover Markers inside JavaScript -->
+                                    <g id="trend-nodes-group"></g>
+                                </svg>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-gray-400 font-bold uppercase mt-2 px-1">
+                                <span>30 Runs Prior (Historical)</span>
+                                <span>Active Current Run</span>
+                            </div>
+                        </div>
+
+                        <!-- Sidebar Summary statistics -->
+                        <div class="lg:col-span-4 bg-slate-50 border border-mid-grey rounded-lg p-4 space-y-4">
+                            <h3 class="font-black text-xs text-dark-charcoal uppercase tracking-wider mb-1 pb-2 border-b border-gray-200">
+                                Statistical Process Variables
+                            </h3>
+                            
+                            <div class="grid grid-cols-2 gap-3 text-xs">
+                                <div class="bg-white p-3 rounded border border-mid-grey">
+                                    <span class="block text-[9px] text-gray-400 uppercase font-bold">Process Mean (μ)</span>
+                                    <strong id="stat-mean" class="text-base font-black text-dark-charcoal">3.19 mm</strong>
+                                </div>
+                                <div class="bg-white p-3 rounded border border-mid-grey">
+                                    <span class="block text-[9px] text-gray-400 uppercase font-bold">Std Deviation (σ)</span>
+                                    <strong id="stat-stddev" class="text-base font-black text-dark-charcoal">0.041 mm</strong>
+                                </div>
+                                <div class="bg-white p-3 rounded border border-mid-grey">
+                                    <span class="block text-[9px] text-gray-400 uppercase font-bold">Process Cp Index</span>
+                                    <strong id="stat-cp" class="text-base font-black text-dark-charcoal">1.30</strong>
+                                </div>
+                                <div class="bg-white p-3 rounded border border-mid-grey">
+                                    <span class="block text-[9px] text-gray-400 uppercase font-bold">Process Cpk Index</span>
+                                    <strong id="stat-cpk" class="text-base font-black text-failure-red">0.78</strong>
+                                </div>
+                            </div>
+
+                            <div class="bg-amber-50 border border-amber-300 rounded p-3 text-xs text-amber-800 font-semibold space-y-1.5">
+                                <div class="font-bold text-[11px] uppercase tracking-wide">⚠ Warning: Poor Cpk Index</div>
+                                <p class="text-[11px] m-0 leading-relaxed font-normal">
+                                    Your Cpk index (0.78) indicates shift average measurements are dangerously close to the lower limit, driven by the LHS caliper variance trend. Physical calibration adjustments on the outfeed rollers are strongly recommended.
+                                </p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==========================================================================
+                 TAB E: PROCESS SPECIFICATION EDITOR
+                 ========================================================================== -->
+            <div id="tab-content-admin" class="hidden space-y-6">
+                <div class="bg-white border border-mid-grey rounded-lg p-6 shadow-md">
+                    <div class="border-b border-light-grey pb-4 mb-4">
+                        <h2 class="font-bold text-sm tracking-wider text-dark-charcoal uppercase flex items-center gap-2">
+                            <span class="w-2.5 h-4 bg-dark-charcoal rounded-sm"></span>
+                            Central Specification and Limit Administrator Portal
+                        </h2>
+                        <p class="text-xs text-gray-500 mt-1">Restricted Area. Adjust master product dimensions, tolerance envelopes, and warning bands across operational stations.</p>
+                    </div>
+
+                    <div class="max-w-xl bg-slate-50 border border-mid-grey rounded-lg p-5 space-y-4">
+                        <div class="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
+                            <span class="bg-porta-red text-white text-[9px] font-black rounded px-2 py-0.5 uppercase tracking-wider">Secured Access</span>
+                            <span class="text-xs text-gray-500 font-semibold">Authorized modification applies plant-wide instantly</span>
+                        </div>
+
+                        <div class="space-y-4 text-xs">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block font-bold text-gray-600 mb-1">Target Product Standard</label>
+                                    <select class="w-full border border-mid-grey p-2 rounded text-xs font-bold">
+                                        <option>3.0 mm LS Structural Veneer</option>
+                                        <option>4.2 mm Standard Lining</option>
+                                        <option>2.4 mm Base Panel Veneer</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-bold text-gray-600 mb-1">Station Controller</label>
+                                    <select class="w-full border border-mid-grey p-2 rounded text-xs font-bold">
+                                        <option>Lathe Outfeed Calipers 01</option>
+                                        <option>Dryer Moisture Scanners 04</option>
+                                        <option>Composer Clippercut Stations</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="border-t border-dashed border-gray-200 pt-4 space-y-3">
+                                <h3 class="font-bold text-[11px] text-dark-charcoal uppercase tracking-wider">Configure Thickness Tolerances (mm)</h3>
+                                
+                                <div class="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-500 mb-1">REJECT LOW LIMIT</label>
+                                        <input type="number" step="0.01" id="spec-reject-low" value="3.01" class="w-full border border-mid-grey p-2 rounded text-xs font-black text-center focus:outline-none focus:ring-1 focus:ring-porta-red">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-500 mb-1">PREFERRED TARGET</label>
+                                        <input type="number" step="0.01" id="spec-target" value="3.22" class="w-full border border-mid-grey p-2 rounded text-xs font-black text-center focus:outline-none focus:ring-1 focus:ring-porta-red">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-gray-500 mb-1">REJECT HIGH LIMIT</label>
+                                        <input type="number" step="0.01" id="spec-reject-high" value="3.33" class="w-full border border-mid-grey p-2 rounded text-xs font-black text-center focus:outline-none focus:ring-1 focus:ring-porta-red">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="pt-4 border-t border-gray-200 flex justify-end">
+                                <button onclick="saveAdminSpecs()" class="bg-porta-red hover:bg-rose-600 text-white px-5 py-2.5 rounded font-black text-xs uppercase transition active:scale-95 shadow-md">
+                                    Commit & Distribute New Specs
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- ==========================================================================
+             6. DASHBOARD FOOTER MANAGEMENT STATUS
+             ========================================================================== -->
+        <footer class="bg-white border-t border-mid-grey p-4 flex flex-col sm:flex-row gap-3 justify-between items-center select-none">
+            <div class="text-xs font-bold text-gray-500">
+                Porta Quality Control Management Ledger Framework &copy; 2026. All rights reserved.
+            </div>
+            <div class="flex items-center gap-3 text-xs">
+                <span class="flex items-center gap-1 text-slate-500 font-semibold">
+                    <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                    Terminal Database Connection: SECURE SQL SERVER
+                </span>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Live Toast Alert Elements Inside DOM -->
+    <div id="toast-holder" class="fixed bottom-6 right-6 z-[2000] flex flex-col gap-2"></div>
+
+    <!-- ==========================================================================
+         7. SYSTEM BUSINESS LOGIC ENGINE
+         ========================================================================== -->
+    <script>
+        // Real-time Database Mock State
+        let exceptions = [
+            {
+                id: 'LAT-20260716-0042',
+                timestamp: '16/07/2026 10:08:43',
+                station: 'Lathe Outfeed',
+                pack: 'P260716-042',
+                characteristic: 'Thickness Left (LHS)',
+                reading: '2.94 mm',
+                limits: '3.01 mm - 3.33 mm',
+                variance: '-0.07 mm below limit',
+                workflow: 'Accelerated Recheck 1 Required',
+                severity: 'CRITICAL',
+                status: 'RECHECK 1'
+            },
+            {
+                id: 'SND-20260716-0118',
+                timestamp: '16/07/2026 09:30:15',
+                station: 'Sander Line',
+                pack: 'P260716-118',
+                characteristic: 'Panel Thickness Center',
+                reading: '17.20 mm',
+                limits: '17.50 mm - 18.20 mm',
+                variance: '-0.30 mm below limit',
+                workflow: 'Hold Quarantine Flagged',
+                severity: 'CRITICAL',
+                status: 'QC REVIEW'
+            },
+            {
+                id: 'LAY-20260716-0104',
+                timestamp: '16/07/2026 08:42:29',
+                station: 'Layup Outfeed',
+                pack: 'P260716-104',
+                characteristic: 'Press Open Assembly Time',
+                reading: '4.5 min',
+                limits: '2.0 min - 4.0 min',
+                variance: '+0.5 min high assembly time',
+                workflow: 'Automated Warning Alert Issued',
+                severity: 'WARNING',
+                status: 'NOTIFIED'
+            },
+            {
+                id: 'DRY-20260716-0016',
+                timestamp: '16/07/2026 08:12:04',
+                station: 'Dryer Outfeed',
+                pack: 'P260716-016',
+                characteristic: 'Peak Zone Moisture Content',
+                reading: '22.1 %',
+                limits: '8.0 % - 18.0 %',
+                variance: '+4.1 % over structural limit',
+                workflow: 'Material Hold Imposed',
+                severity: 'CRITICAL',
+                status: 'HOLD'
+            }
+        ];
+
+        let quarantineHolds = [
+            {
+                id: 'LAT-HOLD-41',
+                pack: 'P260716-042',
+                station: 'Lathe Outfeed',
+                reason: 'Thickness Left Side (2.94mm) Out of Spec',
+                timestamp: '16/07/2026 10:08:43'
+            },
+            {
+                id: 'SND-HOLD-22',
+                pack: 'P260716-118',
+                station: 'Sander Line',
+                reason: 'Panel Thickness Center (17.20mm) Out of Spec',
+                timestamp: '16/07/2026 09:30:15'
+            },
+            {
+                id: 'DRY-HOLD-16',
+                pack: 'P260716-016',
+                station: 'Dryer Outfeed',
+                reason: 'Peak Zone Moisture Content (22.1%) Exceeded',
+                timestamp: '16/07/2026 08:12:04'
+            }
+        ];
+
+        // Charting mock variance trend paths
+        let trendDataPoints = [120, 115, 125, 110, 130, 105, 122, 118, 125, 130, 145, 155, 135, 120, 110, 95, 80, 75, 70, 65, 85, 90, 80, 75, 60, 55, 45, 38, 30, 20];
+
+        let selectedException = null;
+        let selectedHoldPack = null;
+        let liveDataTimer = null;
+
+        // Window entry trigger behaviors
+        window.onload = function() {
+            renderOverviewExceptions();
+            selectExceptionRow(exceptions[0].id);
+            renderQuarantineHolds();
+            renderSVGChart();
+            startSystemClock();
+            triggerToast("QC Dashboard telemetry synchronized successfully.", "green");
+        };
+
+        // System clock generator
+        function startSystemClock() {
+            setInterval(() => {
+                const clock = document.getElementById("live-clock");
+                const now = new Date();
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+                const hrs = String(now.getHours()).padStart(2, '0');
+                const mins = String(now.getMinutes()).padStart(2, '0');
+                const secs = String(now.getSeconds()).padStart(2, '0');
+                clock.innerText = `${day}/${month}/${year} ${hrs}:${mins}:${secs}`;
+            }, 1000);
+        }
+
+        // ==========================================================================
+        // TAB CONTROLLER
+        // ==========================================================================
+        function switchTab(tabId) {
+            // Hide all tab screens
+            const views = ['overview', 'exceptions', 'hold', 'trends', 'admin'];
+            views.forEach(v => {
+                document.getElementById(`tab-content-${v}`).classList.add('hidden');
+                // Remove styling from current tabs
+                const tabBtn = document.getElementById(`btn-tab-${v}`);
+                tabBtn.className = "px-4 py-2 text-xs font-bold uppercase tracking-wider rounded transition-all duration-150 hover:bg-slate-700 text-slate-300";
+            });
+
+            // Reveal selection tab target
+            document.getElementById(`tab-content-${tabId}`).classList.remove('hidden');
+            const activeTabBtn = document.getElementById(`btn-tab-${tabId}`);
+            activeTabBtn.className = "px-4 py-2 text-xs font-bold uppercase tracking-wider rounded transition-all duration-150 bg-porta-red text-white";
+
+            // If entering trends, make sure chart renders
+            if (tabId === 'trends') {
+                setTimeout(renderSVGChart, 100);
+            }
+        }
+
+        // ==========================================================================
+        // EXCEPTION LISTING ENGINE
+        // ==========================================================================
+        function renderOverviewExceptions() {
+            const tbody = document.getElementById("overview-exceptions-tbody");
+            tbody.innerHTML = "";
+
+            exceptions.forEach(ex => {
+                const tr = document.createElement("tr");
+                tr.id = `ex-row-${ex.id}`;
+                tr.onclick = () => selectExceptionRow(ex.id);
+                
+                let highlightClass = "";
+                if (selectedException && selectedException.id === ex.id) {
+                    highlightClass = "bg-slate-100 border-l-4 border-porta-red";
+                } else if (ex.severity === 'CRITICAL') {
+                    highlightClass = "hover:bg-rose-50 border-b border-mid-grey";
+                } else {
+                    highlightClass = "hover:bg-gray-100 border-b border-mid-grey";
+                }
+
+                tr.className = `${highlightClass} transition-colors duration-150`;
+
+                let statusBadge = "";
+                if (ex.status === 'RECHECK 1') {
+                    statusBadge = `<span class="px-2 py-0.5 bg-amber-100 text-alert-amber rounded text-[9px] font-black uppercase">Recheck 1</span>`;
+                } else if (ex.status === 'QC REVIEW') {
+                    statusBadge = `<span class="px-2 py-0.5 bg-indigo-100 text-[#7a7aff] rounded text-[9px] font-black uppercase">QC Review</span>`;
+                } else if (ex.status === 'NOTIFIED') {
+                    statusBadge = `<span class="px-2 py-0.5 bg-yellow-100 text-amber-600 rounded text-[9px] font-black uppercase">Notified</span>`;
+                } else {
+                    statusBadge = `<span class="px-2 py-0.5 bg-rose-100 text-failure-red rounded text-[9px] font-black uppercase">HOLD</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="p-2 border border-mid-grey">${ex.age}</td>
+                    <td class="p-2 border border-mid-grey font-bold text-gray-700">${ex.station}</td>
+                    <td class="p-2 border border-mid-grey text-blue-800 underline font-semibold">${ex.pack}</td>
+                    <td class="p-2 border border-mid-grey text-gray-600">${ex.characteristic}</td>
+                    <td class="p-2 border border-mid-grey text-failure-red font-black">${ex.reading}</td>
+                    <td class="p-2 border border-mid-grey text-center">${statusBadge}</td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+
+            // Also render the full exceptions page list
+            renderFullExceptionsTable();
+        }
+
+        function renderFullExceptionsTable() {
+            const tbody = document.getElementById("full-exceptions-tbody");
+            if (!tbody) return;
+            tbody.innerHTML = "";
+
+            exceptions.forEach(ex => {
+                const tr = document.createElement("tr");
+                tr.className = "hover:bg-gray-100 border-b border-mid-grey text-slate-700";
+                
+                let severityClass = ex.severity === 'CRITICAL' ? 'text-failure-red' : 'text-alert-amber';
+
+                tr.innerHTML = `
+                    <td class="p-3 border border-mid-grey">${ex.timestamp}</td>
+                    <td class="p-3 border border-mid-grey text-gray-500">${ex.id}</td>
+                    <td class="p-3 border border-mid-grey font-bold">${ex.station}</td>
+                    <td class="p-3 border border-mid-grey text-blue-800 underline">${ex.pack}</td>
+                    <td class="p-3 border border-mid-grey">${ex.characteristic}</td>
+                    <td class="p-3 border border-mid-grey font-black ${severityClass}">${ex.reading}</td>
+                    <td class="p-3 border border-mid-grey text-gray-500 font-semibold">${ex.limits}</td>
+                    <td class="p-3 border border-mid-grey text-gray-600">${ex.variance}</td>
+                    <td class="p-3 border border-mid-grey"><span class="px-1.5 py-0.5 bg-slate-200 text-[10px] rounded font-black">${ex.status}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterExceptionsTable() {
+            const searchVal = document.getElementById("exception-search").value.toLowerCase();
+            const severityFilter = document.getElementById("exception-severity-filter").value;
+            const tbody = document.getElementById("full-exceptions-tbody");
+            const rows = tbody.getElementsByTagName("tr");
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const text = row.innerText.toLowerCase();
+                const exceptionId = exceptions[i].id;
+                const matchesSearch = text.includes(searchVal);
+                const matchesSeverity = (severityFilter === "ALL") || (exceptions[i].severity === severityFilter);
+
+                if (matchesSearch && matchesSeverity) {
+                    row.classList.remove("hidden");
+                } else {
+                    row.classList.add("hidden");
+                }
+            }
+        }
+
+        function selectExceptionRow(exId) {
+            const targetEx = exceptions.find(ex => ex.id === exId);
+            if (!targetEx) return;
+
+            selectedException = targetEx;
+            
+            // Highlight selected in Overview Table
+            exceptions.forEach(ex => {
+                const tr = document.getElementById(`ex-row-${ex.id}`);
+                if (tr) {
+                    if (ex.id === exId) {
+                        tr.className = "bg-indigo-50 border-l-4 border-indigo-600 transition-colors duration-150 font-mono text-[11px] font-semibold";
+                    } else {
+                        tr.className = "hover:bg-gray-100 border-b border-mid-grey transition-colors duration-150 font-mono text-[11px] font-semibold";
+                    }
+                }
+            });
+
+            // Set Detailed Box texts
+            document.getElementById("audit-log-id").innerText = targetEx.id;
+            document.getElementById("audit-status").innerText = `${targetEx.severity} ${targetEx.characteristic.toUpperCase()} EXCEPTION`;
+            document.getElementById("audit-status").className = targetEx.severity === 'CRITICAL' ? 'text-failure-red font-black uppercase' : 'text-alert-amber font-black uppercase';
+            document.getElementById("audit-limits").innerText = targetEx.limits;
+            document.getElementById("audit-reading").innerText = `${targetEx.reading} (${targetEx.characteristic.split(' ')[1] || ''} Position)`;
+            document.getElementById("audit-variance").innerText = targetEx.variance;
+            document.getElementById("audit-workflow").innerText = targetEx.workflow;
+            document.getElementById("audit-timestamp").innerText = targetEx.timestamp;
+        }
+
+        // Action Dispatches on Specific Selection Card
+        function requestCorrectionRecheck() {
+            if (!selectedException) return;
+            triggerToast(`Urgent recheck order issued to operator console at terminal ${selectedException.station}.`, "yellow");
+            selectedException.workflow = "Core Correction Pending - Recheck Dispatch Issued";
+            selectedException.status = "RECHECK 1";
+            renderOverviewExceptions();
+        }
+
+        function releaseIsolatedPack() {
+            if (!selectedException) return;
+            triggerToast(`Exception cleared. Pack ${selectedException.pack} authorized for general release.`, "green");
+            removeActiveException(selectedException.id);
+            updateDashboardKPIs();
+        }
+
+        function scraplsolatedPack() {
+            if (!selectedException) return;
+            triggerToast(`Slight down-grading complete. Quarantining pack ${selectedException.pack} for immediate scrap breakdown.`, "red");
+            removeActiveException(selectedException.id);
+            updateDashboardKPIs();
+        }
+
+        function removeActiveException(exId) {
+            exceptions = exceptions.filter(ex => ex.id !== exId);
+            
+            // Also clean from quarantine list if matches
+            quarantineHolds = quarantineHolds.filter(q => q.pack !== selectedException.pack);
+            renderQuarantineHolds();
+
+            if (exceptions.length > 0) {
+                selectedException = exceptions[0];
+                renderOverviewExceptions();
+                selectExceptionRow(exceptions[0].id);
+            } else {
+                document.getElementById("selected-exception-card").classList.add("hidden");
+                renderOverviewExceptions();
+            }
+        }
+
+        // ==========================================================================
+        // QUARANTINE LEDGER ENGINE
+        // ==========================================================================
+        function renderQuarantineHolds() {
+            const container = document.getElementById("hold-packs-list-container");
+            const badge = document.getElementById("hold-count-badge");
+            
+            badge.innerText = quarantineHolds.length;
+            document.getElementById("kpi-hold-val").innerText = quarantineHolds.length;
+            container.innerHTML = "";
+
+            if (quarantineHolds.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-emerald-50 border border-emerald-300 rounded-lg p-8 text-center text-emerald-800">
+                        <h4 class="font-bold uppercase text-sm mb-1">Hold Registry Clear</h4>
+                        <p class="text-xs">There are no material packs flagged for quarantine isolation.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            quarantineHolds.forEach(q => {
+                const div = document.createElement("div");
+                let borderClass = selectedHoldPack && selectedHoldPack.id === q.id ? 'border-indigo-600 ring-2 ring-indigo-300' : 'border-mid-grey';
+                
+                div.className = `bg-white border-2 rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-150 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${borderClass}`;
+                div.onclick = () => selectHoldPackRow(q.id);
+
+                div.innerHTML = `
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 bg-porta-red text-white font-mono text-[9px] font-black rounded uppercase tracking-wide">Quarantined</span>
+                            <strong class="text-xs font-mono font-bold text-gray-900">${q.pack}</strong>
+                            <span class="text-[10px] text-gray-400 font-bold">${q.id}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-700 font-bold">Origin: <span class="text-black">${q.station}</span></div>
+                        <p class="text-xs text-failure-red font-black mt-1">${q.reason}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="block text-[10px] text-gray-400 font-semibold uppercase">Flagged Stamp</span>
+                        <span class="font-mono text-xs font-bold text-slate-600">${q.timestamp.split(' ')[1] || q.timestamp}</span>
+                    </div>
+                `;
+
+                container.appendChild(div);
+            });
+        }
+
+        function selectHoldPackRow(holdId) {
+            const targetHold = quarantineHolds.find(q => q.id === holdId);
+            if (!targetHold) return;
+
+            selectedHoldPack = targetHold;
+            renderQuarantineHolds(); // Force borders refresh
+
+            document.getElementById("hold-no-selection").classList.add("hidden");
+            document.getElementById("hold-action-panel").classList.remove("hidden");
+
+            // Fill Detail panel strings
+            document.getElementById("hold-detail-id").innerText = targetHold.id;
+            document.getElementById("hold-detail-pack").innerText = targetHold.pack;
+            document.getElementById("hold-detail-station").innerText = targetHold.station;
+            document.getElementById("hold-detail-reason").innerText = targetHold.reason;
+            document.getElementById("hold-detail-timestamp").innerText = targetHold.timestamp;
+            document.getElementById("hold-comment-input").value = "";
+        }
+
+        function dispositionPack(actionType) {
+            if (!selectedHoldPack) return;
+            const notes = document.getElementById("hold-comment-input").value;
+            if (!notes.trim()) {
+                triggerToast("Authorization Notes are required for record tracking.", "red");
+                return;
+            }
+
+            if (actionType === 'RELEASE') {
+                triggerToast(`Release disposition approved for Pack ${selectedHoldPack.pack}. Routing to production.`, "green");
+            } else if (actionType === 'DOWNGRADE') {
+                triggerToast(`Disposition authorized: Pack ${selectedHoldPack.pack} downgraded to Structural Secondary Grade.`, "yellow");
+            } else {
+                triggerToast(`Authorized Decommission: Pack ${selectedHoldPack.pack} routed for secure scrap breakdown.`, "red");
+            }
+
+            // Remove from Quarantine list
+            quarantineHolds = quarantineHolds.filter(q => q.id !== selectedHoldPack.id);
+            
+            // Also clean corresponding active exception
+            exceptions = exceptions.filter(ex => ex.pack !== selectedHoldPack.pack);
+
+            selectedHoldPack = null;
+            document.getElementById("hold-action-panel").classList.add("hidden");
+            document.getElementById("hold-no-selection").classList.remove("hidden");
+
+            renderQuarantineHolds();
+            renderOverviewExceptions();
+            updateDashboardKPIs();
+        }
+
+        // ==========================================================================
+        // STATS & TRENDS COMPLIANCE CHARTING ENGINE (SVG PATH GENERATOR)
+        // ==========================================================================
+        function renderSVGChart() {
+            const svg = document.getElementById("trend-svg");
+            const path = document.getElementById("trend-line-path");
+            const nodesGroup = document.getElementById("trend-nodes-group");
+            
+            if (!svg || !path) return;
+
+            // Clear previous interactive nodes
+            nodesGroup.innerHTML = "";
+
+            // SVG view dimensions: Width 600, Height 240
+            const totalPoints = trendDataPoints.length;
+            const xStep = 600 / (totalPoints - 1);
+
+            let dPath = "";
+            
+            for (let i = 0; i < totalPoints; i++) {
+                // Map data point range (0 - 240) onto height
+                // Coordinate height ranges from 40 (Max Spec) to 200 (Min Spec)
+                const x = i * xStep;
+                const y = trendDataPoints[i];
+
+                if (i === 0) {
+                    dPath = `M ${x} ${y}`;
+                } else {
+                    dPath += ` L ${x} ${y}`;
+                }
+
+                // Append small point circle node highlighting failures
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", x);
+                circle.setAttribute("cy", y);
+                circle.setAttribute("r", 4.5);
+                
+                // Color node circles based on tolerance breach zones
+                if (y < 40 || y > 200) {
+                    circle.setAttribute("fill", "#E53935"); // Out of Spec Red
+                    circle.setAttribute("class", "cursor-pointer hover:r-6 transition-all duration-150");
+                } else if (y <= 60 || y >= 180) {
+                    circle.setAttribute("fill", "#FFBF00"); // Warning Amber
+                    circle.setAttribute("class", "cursor-pointer hover:r-6 transition-all duration-150");
+                } else {
+                    circle.setAttribute("fill", "#00E62E"); // Target Green
+                    circle.setAttribute("class", "cursor-pointer hover:r-6 transition-all duration-150");
+                }
+
+                // Add mouse hovers tooltips inside the SVG
+                circle.innerHTML = `<title>Run #${i+1} Parameter Index: ${((240 - y)/60).toFixed(2)}mm</title>`;
+                nodesGroup.appendChild(circle);
+            }
+
+            path.setAttribute("d", dPath);
+        }
+
+        // ==========================================================================
+        // DYNAMIC STATE SYSTEM & METRICS UPDATE
+        // ==========================================================================
+        function updateDashboardKPIs() {
+            // Recount properties
+            document.getElementById("kpi-exceptions-val").innerText = exceptions.length;
+            document.getElementById("kpi-hold-val").innerText = quarantineHolds.length;
+
+            const overdueCard = document.getElementById("kpi-overdue-card");
+            const overdueVal = document.getElementById("kpi-overdue-val");
+            const exceptionsCard = document.getElementById("kpi-exceptions-card");
+            const exceptionsSubtitle = document.getElementById("kpi-exceptions-subtitle");
+
+            // Overview indicators updating based on active state breaches
+            if (exceptions.length > 0) {
+                exceptionsCard.className = "bg-rose-50 p-4 rounded-lg border-l-4 border-failure-red shadow-sm flex flex-col justify-between beacon-active-fail duration-300";
+                exceptionsSubtitle.innerText = `${exceptions.filter(ex => ex.severity === 'CRITICAL').length} Designated Critical`;
+            } else {
+                exceptionsCard.className = "bg-white p-4 rounded-lg border-l-4 border-positive-green shadow-sm flex flex-col justify-between duration-300";
+                exceptionsSubtitle.innerText = "All Floor Operations Controlled";
+                exceptionsSubtitle.className = "text-[10px] text-positive-green mt-2 block font-bold";
+            }
+
+            // Sync structural status badges inside health matrix
+            const activeLatheIssuesCount = exceptions.filter(ex => ex.station === 'Lathe Outfeed').length;
+            const activeLatheHoldsCount = quarantineHolds.filter(q => q.station === 'Lathe Outfeed').length;
+
+            document.getElementById("matrix-lathe-issues").innerText = `${activeLatheIssuesCount} Issues Pending`;
+            document.getElementById("matrix-lathe-holds").innerText = `${activeLatheHoldsCount} Packs`;
+            
+            const matrixBadge = document.getElementById("matrix-badge-lathe");
+            if (activeLatheIssuesCount > 0) {
+                matrixBadge.className = "px-2 py-1 bg-rose-100 text-failure-red font-black text-[9px] rounded uppercase tracking-wide";
+                matrixBadge.innerText = "Action Required";
+                document.getElementById("progress-bar-lathe").style.width = "75%";
+                document.getElementById("progress-val-lathe").innerText = "75%";
+            } else {
+                matrixBadge.className = "px-2 py-1 bg-emerald-100 text-positive-green font-black text-[9px] rounded uppercase tracking-wide";
+                matrixBadge.innerText = "Controlled Baseline";
+                document.getElementById("progress-bar-lathe").style.width = "100%";
+                document.getElementById("progress-val-lathe").innerText = "100%";
+            }
+        }
+
+        // ==========================================================================
+        // SIMULATED INJECTOR & LIVE AGENTS
+        // ==========================================================================
+        function injectScenario(type) {
+            if (type === 'baseline') {
+                // Wipe active anomalies
+                exceptions = [];
+                quarantineHolds = [];
+                trendDataPoints = [120, 115, 125, 110, 130, 105, 122, 118, 125, 130, 125, 120, 115, 120, 110, 115, 120, 118, 122, 125, 120, 118, 122, 125, 120, 115, 118, 120, 122, 120];
+                
+                // Clear active cards
+                document.getElementById("selected-exception-card").classList.add("hidden");
+                
+                // Reset Shift Compliance progress gauges
+                document.getElementById("progress-bar-lathe").style.width = "100%";
+                document.getElementById("progress-val-lathe").innerText = "100%";
+                document.getElementById("progress-bar-dryer").style.width = "98%";
+                document.getElementById("progress-val-dryer").innerText = "98%";
+                document.getElementById("progress-bar-composer").style.width = "100%";
+                document.getElementById("progress-val-composer").innerText = "100%";
+
+                document.getElementById("stat-cp").innerText = "1.58";
+                document.getElementById("stat-cp").className = "text-base font-black text-dark-charcoal";
+                document.getElementById("stat-cpk").innerText = "1.42";
+                document.getElementById("stat-cpk").className = "text-base font-black text-positive-green";
+
+                triggerToast("Scenario Injected: Baseline operations optimal.", "green");
+            } else if (type === 'crisis') {
+                // Populate heavy process anomalies
+                exceptions = [
+                    {
+                        id: 'LAT-20260716-0042',
+                        timestamp: '16/07/2026 19:10:00',
+                        station: 'Lathe Outfeed',
+                        pack: 'P260716-042',
+                        characteristic: 'Thickness Left (LHS)',
+                        reading: '2.84 mm',
+                        limits: '3.01 mm - 3.33 mm',
+                        variance: '-0.17 mm below limit',
+                        workflow: 'Material Hold Imposed',
+                        severity: 'CRITICAL',
+                        status: 'RECHECK 1'
+                    },
+                    {
+                        id: 'DRY-20260716-0019',
+                        timestamp: '16/07/2026 19:05:00',
+                        station: 'Dryer Outfeed',
+                        pack: 'P260716-019',
+                        characteristic: 'Moisture Max Zone',
+                        reading: '24.2 %',
+                        limits: '8.0 % - 18.0 %',
+                        variance: '+6.2 % wet boundary spike',
+                        workflow: 'Quarantine Gate Engaged',
+                        severity: 'CRITICAL',
+                        status: 'HOLD'
+                    }
+                ];
+
+                quarantineHolds = [
+                    {
+                        id: 'LAT-HOLD-41',
+                        pack: 'P260716-042',
+                        station: 'Lathe Outfeed',
+                        reason: 'Thickness Left Side (2.84mm) Out of Spec',
+                        timestamp: '16/07/2026 19:10:00'
+                    },
+                    {
+                        id: 'DRY-HOLD-19',
+                        pack: 'P260716-019',
+                        station: 'Dryer Outfeed',
+                        reason: 'Zone Peak Moisture Content (24.2%) Exceeded',
+                        timestamp: '16/07/2026 19:05:00'
+                    }
+                ];
+
+                trendDataPoints = [120, 115, 125, 110, 130, 105, 122, 118, 125, 130, 145, 155, 135, 120, 110, 95, 80, 75, 70, 65, 85, 90, 80, 75, 60, 55, 45, 38, 25, 10]; // Low dip represents the crisis points
+
+                document.getElementById("selected-exception-card").classList.remove("hidden");
+                
+                // Drop shift metrics
+                document.getElementById("progress-bar-lathe").style.width = "72%";
+                document.getElementById("progress-val-lathe").innerText = "72%";
+                document.getElementById("progress-bar-dryer").style.width = "64%";
+                document.getElementById("progress-val-dryer").innerText = "64%";
+
+                document.getElementById("stat-cp").innerText = "0.85";
+                document.getElementById("stat-cp").className = "text-base font-black text-failure-red";
+                document.getElementById("stat-cpk").innerText = "0.31";
+                document.getElementById("stat-cpk").className = "text-base font-black text-failure-red";
+
+                triggerToast("Scenario Injected: Multi-line structural crisis active.", "red");
+            }
+
+            renderOverviewExceptions();
+            renderQuarantineHolds();
+            renderSVGChart();
+            updateDashboardKPIs();
+        }
+
+        function toggleLiveDataFeed() {
+            const checked = document.getElementById("live-data-feed").checked;
+            if (checked) {
+                triggerToast("OPC-UA Manager Gateway active. Continuous live streaming initialized.", "green");
+                liveDataTimer = setInterval(() => {
+                    // Inject real-time variations to trends
+                    trendDataPoints.shift();
+                    // Append random value (usually within safe standard deviation)
+                    const nextVal = Math.floor(80 + (Math.random() * 80));
+                    trendDataPoints.push(nextVal);
+                    
+                    renderSVGChart();
+
+                    // 10% chance of creating a warning exception live
+                    if (Math.random() < 0.12 && exceptions.length < 5) {
+                        const randomPackId = `P260716-${Math.floor(100 + Math.random() * 400)}`;
+                        const freshEx = {
+                            id: `EX-${Math.floor(1000 + Math.random() * 9000)}`,
+                            timestamp: '16/07/2026 19:15:00',
+                            station: 'Lathe Outfeed',
+                            pack: randomPackId,
+                            characteristic: 'Caliper Edge Deviation',
+                            reading: '3.38 mm',
+                            limits: '3.01 mm - 3.33 mm',
+                            variance: '+0.05 mm thickness threshold breach',
+                            workflow: 'Operator Dispatch Level 1 Active',
+                            severity: 'CRITICAL',
+                            status: 'RECHECK 1'
+                        };
+                        exceptions.unshift(freshEx);
+                        
+                        // Push matching quarantine
+                        quarantineHolds.unshift({
+                            id: `HOLD-${Math.floor(100 + Math.random()*900)}`,
+                            pack: randomPackId,
+                            station: 'Lathe Outfeed',
+                            reason: 'Continuous thickness tolerance threshold breached',
+                            timestamp: '16/07/2026 19:15:00'
+                        });
+
+                        renderOverviewExceptions();
+                        renderQuarantineHolds();
+                        updateDashboardKPIs();
+                        triggerToast(`CRITICAL WARNING: Live threshold breach detected on ${randomPackId}.`, "red");
+                    }
+                }, 2000);
+            } else {
+                clearInterval(liveDataTimer);
+                triggerToast("OPC-UA live monitoring connection paused.", "indigo");
+            }
+        }
+
+        // ==========================================================================
+        // SPECIFICATION ADMINISTRATOR PANEL
+        // ==========================================================================
+        function saveAdminSpecs() {
+            const low = document.getElementById("spec-reject-low").value;
+            const target = document.getElementById("spec-target").value;
+            const high = document.getElementById("spec-reject-high").value;
+
+            // Trigger success response
+            triggerToast(`Master Calibration set successfully. Low: ${low}mm | Center: ${target}mm | High: ${high}mm. Distributed to line machines in 420ms.`, "green");
+            switchTab('overview');
+        }
+
+        // ==========================================================================
+        // TOAST ENGINE NOTIFICATION BUILDER
+        // ==========================================================================
+        function triggerToast(text, color = "indigo") {
+            const holder = document.getElementById("toast-holder");
+            const toast = document.createElement("div");
+            
+            let colorClasses = "bg-slate-900 text-white border-l-4 border-indigo-500";
+            if (color === "green") colorClasses = "bg-slate-900 text-white border-l-4 border-emerald-500";
+            if (color === "red") colorClasses = "bg-slate-900 text-white border-l-4 border-rose-500";
+            if (color === "yellow") colorClasses = "bg-slate-900 text-white border-l-4 border-amber-400";
+
+            toast.className = `p-3 rounded shadow-xl text-xs font-bold transition-all duration-300 transform translate-y-2 opacity-0 flex items-center justify-between gap-4 ${colorClasses}`;
+            toast.innerHTML = `
+                <span>${text}</span>
+                <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-white font-black">&times;</button>
+            `;
+
+            holder.appendChild(toast);
+            
+            // Animate In
+            setTimeout(() => {
+                toast.classList.remove("translate-y-2", "opacity-0");
+            }, 10);
+
+            // Auto Remove after 4 seconds
+            setTimeout(() => {
+                toast.classList.add("translate-y-2", "opacity-0");
+                setTimeout(() => toast.remove(), 300);
+            }, 4500);
+        }
+    </script>
+</body>
+</html>
