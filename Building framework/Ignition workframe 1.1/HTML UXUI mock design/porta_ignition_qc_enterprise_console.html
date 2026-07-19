@@ -1,0 +1,2551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Porta Ignition QC Enterprise Console</title>
+    <!-- Tailwind CSS Engine -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'porta-red': '#D7194B',
+                        'warning-yellow': '#FFF200',
+                        'positive-green': '#10B981',
+                        'review-purple': '#818CF8',
+                        'failure-red': '#EF4444',
+                        'alert-amber': '#F59E0B',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        
+        /* High-Performance HMI Theme Variables based on ASM process control standards */
+        :root {
+            /* Theme 1: HP Slate (Default) */
+            --bg-color: #0F172A;
+            --panel-bg: #0B0F19;
+            --panel-border: #1E293B;
+            --text-main: #E2E8F0;
+            --text-muted: #64748B;
+            --card-inner: #1E293B;
+            --hmi-gray: #475569;
+            --hmi-normal-range: #334155;
+            --hmi-target-tick: #10B981;
+        }
+
+        .theme-hp-gray {
+            /* Theme 2: Industrial Console Gray */
+            --bg-color: #D1D5DB;
+            --panel-bg: #E5E7EB;
+            --panel-border: #9CA3AF;
+            --text-main: #1F2937;
+            --text-muted: #4B5563;
+            --card-inner: #F3F4F6;
+            --hmi-gray: #9CA3AF;
+            --hmi-normal-range: #D1D5DB;
+            --hmi-target-tick: #059669;
+        }
+
+        .theme-midnight {
+            /* Theme 3: Deep Midnight Obsidian */
+            --bg-color: #020205;
+            --panel-bg: #08080E;
+            --panel-border: #12131A;
+            --text-main: #F9FAFB;
+            --text-muted: #9CA3AF;
+            --card-inner: #11131F;
+            --hmi-gray: #374151;
+            --hmi-normal-range: #1F2937;
+            --hmi-target-tick: #10B981;
+        }
+
+        .theme-sage {
+            /* Theme 4: Soothing Soft Sage */
+            --bg-color: #1C1F1D;
+            --panel-bg: #232724;
+            --panel-border: #2D3430;
+            --text-main: #ECF0ED;
+            --text-muted: #829288;
+            --card-inner: #2B312C;
+            --hmi-gray: #4E5950;
+            --hmi-normal-range: #363E38;
+            --hmi-target-tick: #10B981;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* 3-Cycle Pulsing Glow Keyframes for Failures & Warnings */
+        @keyframes qcPulseFailKeyframe {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.4);
+                transform: scale(1.02);
+            }
+        }
+
+        @keyframes qcPulseWarningKeyframe {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.4);
+                transform: scale(1.02);
+            }
+        }
+
+        .animate-pulse-fail {
+            animation: qcPulseFailKeyframe 0.75s ease-in-out 3;
+        }
+
+        .animate-pulse-warning {
+            animation: qcPulseWarningKeyframe 0.75s ease-in-out 3;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--panel-bg);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--hmi-gray);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="p-3 md:p-6 selection:bg-porta-red selection:text-white">
+
+    <div class="max-w-[1700px] mx-auto bg-[var(--panel-bg)] shadow-2xl rounded-2xl overflow-hidden border border-[var(--panel-border)] transition-colors duration-300">
+        
+        <!-- ==========================================================================
+             1. GLOBAL ENTERPRISE TELEMETRY HEADER & ROLE CONTROLLER
+             ========================================================================== -->
+        <header class="bg-black/40 border-b border-[var(--panel-border)] px-6 py-4 flex flex-col xl:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-4">
+                <span class="text-porta-red text-4xl font-black tracking-tighter lowercase select-none">porta</span>
+                <span class="w-[1px] h-8 bg-[var(--panel-border)] hidden md:block"></span>
+                <div>
+                    <h1 class="text-[var(--text-main)] font-extrabold text-[16px] tracking-wider uppercase leading-none">
+                        Ignition QC Process Control System
+                    </h1>
+                    <span class="text-[var(--text-muted)] font-bold text-[10px] uppercase tracking-widest mt-1 block">Myrtleford Processing Plant</span>
+                </div>
+            </div>
+            
+            <!-- Workspace Switching & Active Roles Context -->
+            <div class="flex flex-wrap items-center justify-center gap-4 text-[12px]">
+                <!-- Color Theme Dropdown Selector -->
+                <div class="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-xl border border-[var(--panel-border)]">
+                    <span class="text-[10px] uppercase font-bold text-[var(--text-muted)]">HMI Theme:</span>
+                    <select id="theme-selector" onchange="handleThemeChange()" class="bg-transparent text-[var(--text-main)] font-bold focus:outline-none cursor-pointer">
+                        <option value="slate" class="bg-slate-900 text-white">HP Slate (Dark)</option>
+                        <option value="gray" class="bg-slate-200 text-slate-900">Industrial Gray (Light)</option>
+                        <option value="midnight" class="bg-black text-white">Midnight Obsidian</option>
+                        <option value="sage" class="bg-[#232724] text-[#ECF0ED]">Soft Sage (Ergonomic)</option>
+                    </select>
+                </div>
+
+                <!-- Role Selector -->
+                <div class="flex items-center bg-black/30 rounded-xl border border-[var(--panel-border)] p-1 gap-1">
+                    <button id="btn-switch-tech" onclick="setWorkspaceRole('technician')" class="px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all duration-150 bg-porta-red text-white">
+                        QC Technician
+                    </button>
+                    <button id="btn-switch-mgr" onclick="setWorkspaceRole('manager')" class="px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all duration-150 text-[var(--text-muted)] hover:text-[var(--text-main)]">
+                        QC Manager Workspace
+                    </button>
+                </div>
+                
+                <div class="bg-black/30 px-3 py-2 rounded-xl border border-[var(--panel-border)] text-[var(--text-main)]">
+                    Station: <strong id="header-station-id" class="text-[var(--text-main)] font-semibold font-mono">LAT-STN-01</strong>
+                </div>
+                <div class="bg-black/30 px-3 py-2 rounded-xl border border-[var(--panel-border)] text-[var(--text-main)]">
+                    Shift Code: <strong class="text-[var(--text-main)] font-semibold uppercase">Day Shift</strong>
+                </div>
+                <div class="flex items-center gap-2 bg-black/20 px-3 py-2 rounded-xl border border-emerald-500/30 text-emerald-400 font-bold text-[10px] uppercase select-none tracking-wider">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    Gateway Online
+                </div>
+            </div>
+        </header>
+
+        <!-- ==========================================================================
+             DATE & TIME SEARCH ENGINE BAR (Global Search Panel Integration)
+             ========================================================================== -->
+        <section class="bg-black/20 border-b border-[var(--panel-border)] px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2.5 text-[var(--text-main)]">
+                <svg class="w-4 h-4 text-porta-red" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-[12px] font-bold uppercase tracking-wider">Historical Time Filter Window:</span>
+                <span id="active-time-window-label" class="bg-black/40 text-porta-red px-2 py-0.5 rounded text-[11px] font-mono font-bold border border-[var(--panel-border)]">
+                    Day Shift (Today)
+                </span>
+            </div>
+
+            <!-- Interactive Filters Form Controls -->
+            <div class="flex flex-wrap items-center gap-2.5 text-[12px]">
+                <!-- Preset Dropdown Selector -->
+                <div class="flex flex-col">
+                    <select id="global-time-preset" onchange="handlePresetChange()" class="bg-black/30 text-[var(--text-main)] border border-[var(--panel-border)] rounded-lg px-3 py-1.5 font-semibold focus:outline-none focus:ring-1 focus:ring-porta-red cursor-pointer">
+                        <option value="current-shift">Current Active Shift</option>
+                        <option value="today" selected>Today (Last 12 Hours)</option>
+                        <option value="yesterday">Yesterday (Completed Run)</option>
+                        <option value="last-24h">Last 24 Hours (Rolling Trend)</option>
+                        <option value="custom">Custom Date & Time Range...</option>
+                    </select>
+                </div>
+
+                <!-- Custom Range Containers (Conditional View State) -->
+                <div id="custom-datetime-container" class="hidden flex flex-wrap items-center gap-2 animate-fade-in">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] text-[var(--text-muted)] uppercase font-bold">From:</span>
+                        <input type="date" id="filter-start-date" value="2026-07-16" class="bg-black/30 text-[var(--text-main)] border border-[var(--panel-border)] rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-porta-red font-mono text-xs">
+                        <input type="time" id="filter-start-time" value="06:00" class="bg-black/30 text-[var(--text-main)] border border-[var(--panel-border)] rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-porta-red font-mono text-xs">
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] text-[var(--text-muted)] uppercase font-bold">To:</span>
+                        <input type="date" id="filter-end-date" value="2026-07-16" class="bg-black/30 text-[var(--text-main)] border border-[var(--panel-border)] rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-porta-red font-mono text-xs">
+                        <input type="time" id="filter-end-time" value="18:00" class="bg-black/30 text-[var(--text-main)] border border-[var(--panel-border)] rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-porta-red font-mono text-xs">
+                    </div>
+                </div>
+
+                <button onclick="applyDateFilters()" class="bg-black/30 hover:bg-black/50 text-[var(--text-main)] border border-[var(--panel-border)] font-bold uppercase text-[10px] tracking-wider px-3.5 py-1.5 rounded-lg transition active:scale-95 flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-porta-red" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    Apply Filter
+                </button>
+            </div>
+        </section>
+
+        <!-- ==========================================================================
+             2. DUAL WORKSPACE SHELL WRAPPER (Golden Ratio Split layout)
+             ========================================================================== -->
+        <div class="flex flex-col lg:flex-row min-h-[800px]">
+            
+            <!-- LEFT NAVIGATION COLUMN (Workspace Specific) -->
+            <aside class="lg:w-[15%] bg-black/40 text-[var(--text-main)] p-4 border-r border-[var(--panel-border)] flex flex-col justify-between flex-shrink-0">
+                <div>
+                    <div class="pb-3 border-b border-[var(--panel-border)] mb-4">
+                        <span class="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest block">Active Workspace</span>
+                        <strong id="aside-workspace-lbl" class="text-[12px] font-bold text-porta-red uppercase block">QC Technician Hub</strong>
+                    </div>
+
+                    <!-- Navigation Links: Technician Workspace -->
+                    <nav id="nav-tech-links" class="space-y-1">
+                        <button onclick="setTechView('home')" id="btn-tech-home" class="w-full text-left px-3 py-2.5 text-[12px] font-bold uppercase rounded-lg tracking-wider bg-porta-red text-white flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                            Technician Home
+                        </button>
+                        
+                        <!-- Form Categories -->
+                        <div class="pt-4 pb-1">
+                            <span class="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest block px-3">Process Stages</span>
+                        </div>
+                        <button onclick="setTechView('form', 'F-001')" id="btn-tech-f001" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)] flex items-center justify-between">
+                            <span>F-001 Lathe Outfeed</span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-positive-green"></span>
+                        </button>
+                        <button onclick="setTechView('form', 'F-003')" id="btn-tech-f003" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)] flex items-center justify-between">
+                            <span>F-003 Dryer Moisture</span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-positive-green"></span>
+                        </button>
+                        <button onclick="setTechView('form', 'F-006')" id="btn-tech-f006" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)] flex items-center justify-between">
+                            <span>F-006 Composer Outfeed</span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-positive-green"></span>
+                        </button>
+                        <button onclick="setTechView('form', 'F-013')" id="btn-tech-f013" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)] flex items-center justify-between">
+                            <span>F-013 Sanding Matrix</span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-positive-green"></span>
+                        </button>
+
+                        <div class="pt-4 pb-1">
+                            <span class="text-[9px] font-black text-[var(--text-muted)] uppercase tracking-widest block px-3">Registry Logs</span>
+                        </div>
+                        <button onclick="setTechView('exceptions')" id="btn-tech-exceptions" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)] flex items-center justify-between">
+                            <span>Active Exceptions</span>
+                            <span id="aside-badge-exceptions" class="bg-failure-red text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">2</span>
+                        </button>
+                        <button onclick="setTechView('holds')" id="btn-tech-holds" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)] flex items-center justify-between">
+                            <span>Material Holds</span>
+                            <span id="aside-badge-holds" class="bg-review-purple text-dark-charcoal text-[9px] font-bold px-1.5 py-0.5 rounded-full">1</span>
+                        </button>
+                    </nav>
+
+                    <!-- Navigation Links: Manager Workspace -->
+                    <nav id="nav-mgr-links" class="space-y-1 hidden">
+                        <button onclick="setMgrView('overview')" id="btn-mgr-overview" class="w-full text-left px-3 py-2.5 text-[12px] font-bold uppercase rounded-lg tracking-wider bg-porta-red text-white">
+                            Manager Overview
+                        </button>
+                        <button onclick="setMgrView('exceptions')" id="btn-mgr-exceptions" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)]">
+                            Live Exceptions Queue
+                        </button>
+                        <button onclick="setMgrView('holds')" id="btn-mgr-holds" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)]">
+                            HOLD Register Ledger
+                        </button>
+                        <button onclick="setMgrView('tracking')" id="btn-mgr-tracking" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)]">
+                            Cross-Stage Tracking
+                        </button>
+                        <button onclick="setMgrView('trends')" id="btn-mgr-trends" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)]">
+                            Interactive Process Trends
+                        </button>
+                        <button onclick="setMgrView('config')" id="btn-mgr-config" class="w-full text-left px-3 py-2 text-[12px] font-semibold rounded hover:bg-black/20 text-[var(--text-muted)]">
+                            Specification Control
+                        </button>
+                        <button onclick="setMgrView('audit')" id="btn-mgr-audit" class="w-full text-left px-3 py-2 text-xs font-semibold rounded hover:bg-black/20 text-[var(--text-muted)]">
+                            Tamper-Evident Audits
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Footer Status Connection Bar -->
+                <div class="border-t border-[var(--panel-border)] pt-4 mt-4 text-[10px] text-[var(--text-muted)] font-bold space-y-1">
+                    <div>User Display Name:</div>
+                    <div id="aside-user-display" class="text-[var(--text-main)] font-black truncate">QC_Technician_Account</div>
+                    <div class="pt-2 text-[9px] uppercase text-slate-500">Telemetry Feed</div>
+                    <div class="flex items-center gap-1.5">
+                        <input type="checkbox" id="sim-telemetry-toggle" onchange="toggleSimulatedTelemetry()" class="rounded bg-slate-900 border-slate-850 text-porta-red focus:ring-porta-red w-3.5 h-3.5 cursor-pointer">
+                        <label for="sim-telemetry-toggle" class="cursor-pointer select-none text-[var(--text-muted)]">Live Tag Feed</label>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- MAIN WORKSPACE VIEWER (Flex content area using Golden Ratio proportions) -->
+            <main class="flex-1 bg-transparent p-4 md:p-6 flex flex-col justify-between overflow-hidden">
+                
+                <!-- ==========================================================================
+                     WORKSPACE: TECHNICIAN VIEWS
+                     ========================================================================== -->
+                <div id="tech-workspace-container" class="space-y-6">
+                    
+                    <!-- TECH VIEW: HOME DASHBOARD -->
+                    <div id="tech-view-home" class="space-y-6 animate-fade-in">
+                        <div class="flex flex-col xl:flex-row gap-6">
+                            
+                            <!-- Left: Checks Due Now (Proportioned to 61.8% of the workspace) -->
+                            <div class="xl:w-[61.8%] space-y-4 flex-shrink-0">
+                                <div class="bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-4 shadow-md">
+                                    <h2 class="text-[12px] font-black uppercase tracking-wider text-[var(--text-main)] border-b border-[var(--panel-border)] pb-2 mb-4 flex items-center justify-between">
+                                        <span>Inspection Schedule (Due Now)</span>
+                                        <span class="text-[10px] text-[var(--text-muted)]">Database Context Synced</span>
+                                    </h2>
+                                    
+                                    <div class="space-y-3">
+                                        <div class="bg-black/10 border border-[var(--panel-border)] rounded-xl p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            <div>
+                                                <div class="flex items-center gap-2">
+                                                    <span class="px-2 py-0.5 bg-porta-red text-white text-[9px] font-black rounded-md uppercase">NOW DUE</span>
+                                                    <strong class="text-xs text-[var(--text-main)]">F-001 Lathe Outfeed Checks</strong>
+                                                </div>
+                                                <p class="text-[11px] text-[var(--text-muted)] mt-1">Scheduled Interval: Hourly check window</p>
+                                            </div>
+                                            <button onclick="setTechView('form', 'F-001')" class="bg-positive-green hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition">
+                                                Start Inspection Form
+                                            </button>
+                                        </div>
+
+                                        <div class="bg-black/10 border border-[var(--panel-border)] rounded-xl p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            <div>
+                                                <div class="flex items-center gap-2">
+                                                    <span class="px-2 py-0.5 bg-alert-amber text-slate-950 text-[9px] font-black rounded-md uppercase">8 MIN LATE</span>
+                                                    <strong class="text-xs text-[var(--text-main)]">F-013 Sanding Line Core Checks</strong>
+                                                </div>
+                                                <p class="text-[11px] text-[var(--text-muted)] mt-1">Scheduled Interval: Two-hourly check</p>
+                                            </div>
+                                            <button onclick="setTechView('form', 'F-013')" class="bg-positive-green hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-wider transition">
+                                                Start Inspection Form
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-4 shadow-md">
+                                    <h2 class="text-[12px] font-black uppercase tracking-wider text-[var(--text-main)] border-b border-[var(--panel-border)] pb-2 mb-4">
+                                        Open Quality Assurance Actions (Rechecks & Mitigation)
+                                    </h2>
+                                    <div class="space-y-2" id="tech-open-rechecks-container">
+                                        <!-- Populated dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Shift Status Statistics & Recent Submissions (Proportioned to 38.2%) -->
+                            <div class="xl:w-[38.2%] space-y-4 flex-grow">
+                                <div class="bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-4 shadow-md">
+                                    <h2 class="text-[12px] font-black uppercase tracking-wider text-[var(--text-main)] border-b border-[var(--panel-border)] pb-2 mb-4">
+                                        Station Shift Performance Indicators
+                                    </h2>
+                                    <div class="grid grid-cols-2 gap-3 text-[12px]">
+                                        <div class="bg-black/20 p-3 rounded-lg border border-[var(--panel-border)]">
+                                            <span class="block text-[9px] text-[var(--text-muted)] uppercase font-black">Logged Complete</span>
+                                            <strong id="tech-shift-complete" class="text-lg font-black text-[var(--text-main)]">8 / 9</strong>
+                                        </div>
+                                        <div class="bg-black/20 p-3 rounded-lg border border-[var(--panel-border)]">
+                                            <span class="block text-[9px] text-[var(--text-muted)] uppercase font-black">Active Exceptions</span>
+                                            <strong id="tech-shift-exceptions" class="text-lg font-black text-alert-amber">2</strong>
+                                        </div>
+                                        <div class="bg-black/20 p-3 rounded-lg border border-[var(--panel-border)]">
+                                            <span class="block text-[9px] text-[var(--text-muted)] uppercase font-black">Open Rechecks</span>
+                                            <strong id="tech-shift-rechecks" class="text-lg font-black text-failure-red">1</strong>
+                                        </div>
+                                        <div class="bg-black/20 p-3 rounded-lg border border-[var(--panel-border)]">
+                                            <span class="block text-[9px] text-[var(--text-muted)] uppercase font-black">Pending Drafts</span>
+                                            <strong id="tech-shift-drafts" class="text-lg font-black text-blue-400">0</strong>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-4 shadow-md">
+                                    <h2 class="text-[12px] font-black uppercase tracking-wider text-[var(--text-main)] border-b border-[var(--panel-border)] pb-2 mb-4">
+                                        Recent Submitted Records
+                                    </h2>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left text-[11px] border border-[var(--panel-border)] rounded-lg overflow-hidden">
+                                            <thead>
+                                                <tr class="bg-black/30 text-[var(--text-muted)] uppercase text-[8px] tracking-widest border-b border-[var(--panel-border)]">
+                                                    <th class="p-3">Time</th>
+                                                    <th class="p-3">Form Reference</th>
+                                                    <th class="p-3">Pack / Batch</th>
+                                                    <th class="p-3 text-center">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="tech-home-recent-table" class="font-mono font-semibold text-[var(--text-main)]">
+                                                <!-- Dynamic rows -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- TECH VIEW: DATA ENTRY FORMS (ASM range gauges integrated) -->
+                    <div id="tech-view-form" class="hidden flex flex-col xl:flex-row gap-6">
+                        <!-- Left Column: Current Inspection Inputs (61.8% Split) -->
+                        <div class="xl:w-[61.8%] space-y-4 flex-shrink-0 animate-fade-in">
+                            <div class="bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-4 shadow-md">
+                                <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[var(--panel-border)] pb-3 mb-4 gap-2">
+                                    <div>
+                                        <h2 id="active-form-title" class="font-black text-sm tracking-wide text-[var(--text-main)] uppercase flex items-center gap-2">
+                                            <span class="w-2.5 h-4 bg-porta-red rounded-sm"></span>
+                                            F-001 Lathe Outfeed Process Control Sheet
+                                        </h2>
+                                        <span id="active-form-ref-doc" class="text-[9px] text-[var(--text-muted)] font-bold uppercase block mt-1">Ref Document: 05-20-39 Rev 27/02/2026</span>
+                                    </div>
+                                    <div class="bg-black/20 px-3 py-1.5 rounded-lg border border-[var(--panel-border)] text-xs font-bold uppercase text-[var(--text-muted)]">
+                                        Active Pack: <span id="form-active-pack" class="font-mono text-porta-red ml-1">P260716-042</span>
+                                    </div>
+                                </div>
+
+                                <!-- Current Measurement Inputs Array -->
+                                <div class="space-y-4">
+                                    <div class="bg-black/30 text-[var(--text-main)] text-[9px] font-black px-3 py-2 rounded-t-lg flex justify-between items-center uppercase tracking-widest border border-[var(--panel-border)] border-b-0">
+                                        <span>Glanceable High-Performance ASM Analog Gauges</span>
+                                        <span id="active-limits-label" class="font-normal font-mono">Loading specs...</span>
+                                    </div>
+                                    <div id="form-measurements-list" class="border border-[var(--panel-border)] rounded-b-lg p-3 bg-black/10 space-y-4">
+                                        <!-- Dynamically generated measurement rows with high performance analog bars -->
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic Action Instruction Block -->
+                                <div id="form-mitigation-banner" class="mt-4 border-2 border-amber-500 rounded-xl p-4 bg-black/10 shadow-inner flex gap-3 transition-colors duration-500">
+                                    <div class="text-xl md:text-2xl mt-0.5 select-none animate-pulse" id="form-mitigation-icon">⚠</div>
+                                    <div>
+                                        <h3 class="text-xs font-black text-slate-100 uppercase tracking-wider mb-1" id="form-mitigation-title">Action Required</h3>
+                                        <p class="text-xs text-[var(--text-muted)] m-0 leading-relaxed font-semibold" id="form-mitigation-desc">
+                                            Loading validation rules...
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Current Shift Log & Specific Audit Overlay (38.2% Split) -->
+                        <div class="xl:w-[38.2%] space-y-4 flex-grow animate-fade-in">
+                            <div class="bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-4 shadow-md flex flex-col justify-between min-h-[460px]">
+                                <div>
+                                    <div class="flex justify-between items-center border-b border-[var(--panel-border)] pb-3 mb-3">
+                                        <h2 class="font-black text-xs tracking-wider text-[var(--text-main)] uppercase flex items-center gap-2">
+                                            <span class="w-2.5 h-4 bg-[var(--text-muted)] rounded-sm"></span>
+                                            Station Local Shift Log
+                                        </h2>
+                                        <span class="text-[9px] text-[var(--text-muted)] font-bold uppercase">Today</span>
+                                    </div>
+
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left text-[11px] border border-[var(--panel-border)] rounded-lg overflow-hidden">
+                                            <thead>
+                                                <tr class="bg-black/30 text-[var(--text-muted)] uppercase text-[8px] tracking-wide border-b border-[var(--panel-border)]">
+                                                    <th class="p-2">Status</th>
+                                                    <th class="p-2">Time</th>
+                                                    <th class="p-2">Pack</th>
+                                                    <th class="p-2">Measurements</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="form-shift-log-tbody" class="font-mono font-bold text-[var(--text-muted)]">
+                                                <!-- Generated dynamically based on form type -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Selected Record Focus Detail (Prevents visual layer collisions) -->
+                                    <div id="form-record-focus-panel" class="mt-4 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl p-3.5 shadow-lg relative z-50 transition-all duration-300">
+                                        <div class="flex justify-between items-center border-b border-[var(--panel-border)] pb-2 mb-2">
+                                            <span class="text-[9px] font-black uppercase text-[var(--text-main)] tracking-widest flex items-center gap-1.5">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></span>
+                                                Audit Log Context
+                                            </span>
+                                            <span id="focus-log-id" class="text-[9px] font-mono text-[var(--text-muted)] font-bold">LAT-20260716-0042</span>
+                                        </div>
+                                        <div class="space-y-1.5 text-[11px] text-[var(--text-muted)] font-semibold">
+                                            <div class="flex justify-between"><span>Status:</span> <span id="focus-status" class="text-failure-red font-black">OUT OF SPEC</span></div>
+                                            <div class="flex justify-between"><span>Identifier Pack:</span> <span id="focus-pack" class="font-mono text-[var(--text-main)]">P-042</span></div>
+                                            <div class="flex justify-between"><span>Readings Logged:</span> <span id="focus-readings" class="font-mono text-[var(--text-main)] font-bold">3.18 / 3.22 / 2.94</span></div>
+                                            <div class="flex justify-between border-t border-dashed border-[var(--panel-border)] pt-1.5 mt-1">
+                                                <span>Deviation Error:</span> <span id="focus-deviation" class="text-failure-red font-bold">LHS Caliper -0.07 mm below structural minimum</span>
+                                            </div>
+                                            <div class="flex justify-between"><span>Enforced Workflow:</span> <span id="focus-workflow" class="text-alert-amber">Accelerated Recheck 1 Required</span></div>
+                                            <div class="border-t border-dashed border-[var(--panel-border)] pt-1.5 mt-1">
+                                                <span class="block text-[9px] text-[var(--text-muted)] font-black uppercase">Operator Comments:</span>
+                                                <p id="focus-comment" class="text-[11px] text-[var(--text-main)] font-medium italic m-0 bg-black/20 p-2 rounded border border-[var(--panel-border)] mt-1">No comments recorded.</p>
+                                            </div>
+                                            <div class="text-[9px] text-[var(--text-muted)] text-right font-bold pt-1.5 border-t border-[var(--panel-border)] mt-1">
+                                                Commit Stamp: <span id="focus-timestamp" class="font-mono">16/07/2026 10:08:43</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Transaction Buttons Panel -->
+                                <div class="border-t border-[var(--panel-border)] pt-4 mt-6 flex flex-wrap gap-2 justify-between">
+                                    <div class="flex gap-2">
+                                        <button onclick="undoActiveFormFields()" class="bg-black/30 hover:bg-black/40 text-[var(--text-main)] border border-[var(--panel-border)] px-4 py-2 rounded-lg font-black text-[10px] uppercase transition active:scale-95">
+                                            Undo Edits
+                                        </button>
+                                        <button onclick="saveActiveFormDraft()" class="bg-review-purple hover:bg-indigo-400 text-slate-900 px-4 py-2 rounded-lg font-black text-[10px] uppercase transition active:scale-95">
+                                            Save Draft
+                                        </button>
+                                    </div>
+                                    <button onclick="submitActiveForm()" class="bg-positive-green hover:bg-emerald-600 text-white px-6 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-wider transition active:scale-95 flex items-center gap-2">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                        Submit Form Record
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TECH VIEW: EXCEPTIONS LISTING -->
+                    <div id="tech-view-exceptions" class="hidden bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-6 shadow-md animate-fade-in">
+                        <div class="border-b border-[var(--panel-border)] pb-4 mb-4">
+                            <h2 class="font-black text-sm tracking-wider text-[var(--text-main)] uppercase">
+                                Open Plant-Wide Exception Queue
+                            </h2>
+                            <p class="text-xs text-[var(--text-muted)] mt-1">Audit log tracking non-conformance records generated at your local terminal station.</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border border-[var(--panel-border)] rounded-lg overflow-hidden">
+                                <thead>
+                                    <tr class="bg-black/30 text-[var(--text-main)] uppercase text-[8px] tracking-widest border-b border-[var(--panel-border)]">
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Exception ID</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Form Code</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Pack ID</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Failed Attribute</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)] text-center">Outcome Value</th>
+                                        <th class="p-3 text-center">Status state</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tech-exceptions-tbody" class="font-mono font-bold text-[var(--text-muted)]">
+                                    <!-- Dynamic Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TECH VIEW: HOLD LISTING -->
+                    <div id="tech-view-holds" class="hidden bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-6 shadow-md animate-fade-in">
+                        <div class="border-b border-[var(--panel-border)] pb-4 mb-4">
+                            <h2 class="font-black text-sm tracking-wider text-[var(--text-main)] uppercase">
+                                Material Quarantine & Hold Ledger
+                            </h2>
+                            <p class="text-xs text-[var(--text-muted)] mt-1">Active packs held at this station due to continuous process non-conformances.</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border border-[var(--panel-border)] rounded-lg overflow-hidden">
+                                <thead>
+                                    <tr class="bg-black/30 text-[var(--text-main)] uppercase text-[8px] tracking-widest border-b border-[var(--panel-border)]">
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Hold ID</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Pack Code</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Origin Process</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Reason Statement</th>
+                                        <th class="p-3">Logged Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tech-holds-tbody" class="font-mono font-bold text-[var(--text-muted)]">
+                                    <!-- Dynamic Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ==========================================================================
+                     WORKSPACE: QC MANAGER VIEWS
+                     ========================================================================== -->
+                <div id="mgr-workspace-container" class="space-y-6 hidden">
+                    
+                    <!-- MGR VIEW: OVERVIEW DASHBOARD -->
+                    <div id="mgr-view-overview" class="space-y-6 animate-fade-in">
+                        <!-- KPI Ribbon -->
+                        <section class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div class="bg-[var(--card-inner)] p-4 rounded-xl border-l-4 border-positive-green border-[var(--panel-border)] shadow flex flex-col justify-between">
+                                <div><span class="block text-[9px] text-[var(--text-muted)] font-bold uppercase">Checks Completed</span><strong id="mgr-kpi-completed" class="block text-xl font-black text-[var(--text-main)] mt-1">38 / 42</strong></div>
+                                <span class="text-[9px] text-[var(--text-muted)] font-medium">90.4% Daily Compliance</span>
+                            </div>
+                            <div class="bg-[var(--card-inner)] p-4 rounded-xl border-l-4 border-alert-amber border-[var(--panel-border)] shadow flex flex-col justify-between">
+                                <div><span class="block text-[9px] text-[var(--text-muted)] font-bold uppercase">Overdue Checks</span><strong id="mgr-kpi-overdue" class="block text-xl font-black text-[var(--text-main)] mt-1">4</strong></div>
+                                <span class="text-[9px] text-[var(--text-muted)] font-medium">Across 3 active stations</span>
+                            </div>
+                            <div class="bg-[var(--card-inner)] p-4 rounded-xl border-l-4 border-failure-red border-[var(--panel-border)] shadow flex flex-col justify-between">
+                                <div><span class="block text-[9px] text-[var(--text-muted)] font-bold uppercase">Open Exceptions</span><strong id="mgr-kpi-exceptions" class="block text-xl font-black text-[var(--text-main)] mt-1">2</strong></div>
+                                <span class="text-[9px] text-failure-red font-bold">1 Designated Critical</span>
+                            </div>
+                            <div class="bg-[var(--card-inner)] p-4 rounded-xl border-l-4 border-review-purple border-[var(--panel-border)] shadow flex flex-col justify-between">
+                                <div><span class="block text-[9px] text-[var(--text-muted)] font-bold uppercase">Packs On Quarantine Hold</span><strong id="mgr-kpi-holds" class="block text-xl font-black text-[var(--text-main)] mt-1">1</strong></div>
+                                <span class="text-[9px] text-[var(--text-muted)] font-medium">Awaiting Manager Review</span>
+                            </div>
+                            <div class="bg-[var(--card-inner)] p-4 rounded-xl border-l-4 border-orange-500 border-[var(--panel-border)] shadow flex flex-col justify-between">
+                                <div><span class="block text-[9px] text-[var(--text-muted)] font-bold uppercase">Calibration Windows Due</span><strong class="block text-xl font-black text-[var(--text-main)] mt-1">2</strong></div>
+                                <span class="text-[9px] text-orange-400 font-bold">Required within 7 days</span>
+                            </div>
+                        </section>
+
+                        <!-- Secondary Split Layout (Golden Ratio Split) -->
+                        <div class="flex flex-col xl:flex-row gap-6">
+                            <!-- Left: Live Exception Queue (61.8% of screen) -->
+                            <div class="xl:w-[61.8%] bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-4 shadow-md flex-shrink-0">
+                                <div class="flex justify-between items-center border-b border-[var(--panel-border)] pb-3 mb-4">
+                                    <h2 class="font-black text-xs tracking-wider text-[var(--text-main)] uppercase flex items-center gap-2">
+                                        <span class="w-2.5 h-4 bg-porta-red rounded-sm"></span>
+                                        Live Exceptions Queue (Prioritized Priority)
+                                    </h2>
+                                    <button onclick="setMgrView('exceptions')" class="text-porta-red hover:underline text-[10px] font-bold uppercase">Manage All</button>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left text-[11px] border border-[var(--panel-border)] rounded-lg overflow-hidden">
+                                        <thead>
+                                            <tr class="bg-black/30 text-[var(--text-muted)] uppercase text-[8px] tracking-widest border-b border-[var(--panel-border)]">
+                                                <th class="p-2.5">Age</th>
+                                                <th class="p-2.5">Station</th>
+                                                <th class="p-2.5">Pack</th>
+                                                <th class="p-2.5">Failed Attribute</th>
+                                                <th class="p-2.5 text-center">Value</th>
+                                                <th class="p-2.5 text-center">State</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="mgr-overview-exceptions-tbody" class="font-mono font-bold text-[var(--text-muted)]">
+                                            <!-- Dynamic Rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Right: Shift Compliance Status (38.2% of screen) -->
+                            <div class="xl:w-[38.2%] bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-4 shadow-md flex flex-col justify-between flex-grow">
+                                <div>
+                                    <div class="border-b border-[var(--panel-border)] pb-3 mb-4">
+                                        <h2 class="font-black text-xs tracking-wider text-[var(--text-main)] uppercase flex items-center gap-2">
+                                            <span class="w-2.5 h-4 bg-black/40 rounded-sm"></span>
+                                            Process Stage Line Compliance
+                                        </h2>
+                                    </div>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <div class="flex justify-between text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1">
+                                                <span>Veneer Prep Stage (Lathe / Dryer)</span>
+                                                <span class="font-mono text-[var(--text-main)]">92%</span>
+                                            </div>
+                                            <div class="w-full bg-black/20 h-3 rounded-full overflow-hidden border border-[var(--panel-border)]">
+                                                <div class="bg-positive-green h-full rounded-full" style="width: 92%"></div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="flex justify-between text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1">
+                                                <span>Veneer Assembly Stage (Composer)</span>
+                                                <span class="font-mono text-[var(--text-main)]">100%</span>
+                                            </div>
+                                            <div class="w-full bg-black/20 h-3 rounded-full overflow-hidden border border-[var(--panel-border)]">
+                                                <div class="bg-positive-green h-full rounded-full" style="width: 100%"></div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="flex justify-between text-[10px] font-bold text-[var(--text-muted)] uppercase mb-1">
+                                                <span>Finishing Process Area (Sanding Matrix)</span>
+                                                <span class="font-mono text-[var(--text-main)]">86%</span>
+                                            </div>
+                                            <div class="w-full bg-black/20 h-3 rounded-full overflow-hidden border border-[var(--panel-border)]">
+                                                <div class="bg-alert-amber h-full rounded-full" style="width: 86%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 pt-4 border-t border-[var(--panel-border)] text-center text-[10px] font-bold uppercase text-[var(--text-muted)]">
+                                    All compliance targets resolved dynamically
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Process Status Matrix -->
+                        <div class="bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-4 shadow-md">
+                            <h2 class="font-black text-xs tracking-wider text-[var(--text-main)] border-b border-[var(--panel-border)] pb-3 mb-4">
+                                Master Process Stage Status Matrix
+                            </h2>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs border border-[var(--panel-border)] rounded-lg overflow-hidden">
+                                    <thead>
+                                        <tr class="bg-black/30 text-[var(--text-main)] uppercase text-[8px] tracking-widest">
+                                            <th class="p-3">Process Station Target</th>
+                                            <th class="p-3 text-center">Logs Status</th>
+                                            <th class="p-3">Next Required Run</th>
+                                            <th class="p-3 text-center">Open Actions</th>
+                                            <th class="p-3 text-center">Held Packs</th>
+                                            <th class="p-3 text-center font-bold">Health Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mgr-overview-matrix-tbody" class="font-bold text-[var(--text-muted)]">
+                                        <!-- Dynamic matrix updates -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MGR VIEW: EXCEPTIONS DETAIL MANAGER -->
+                    <div id="mgr-view-exceptions" class="hidden bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-6 shadow-md animate-fade-in">
+                        <div class="border-b border-[var(--panel-border)] pb-4 mb-4">
+                            <h2 class="font-black text-sm tracking-wider text-[var(--text-main)] uppercase">
+                                Prioritized Exceptions Resolver Board
+                            </h2>
+                            <p class="text-xs text-[var(--text-muted)] mt-1">Review active operator failures, verify corrective comments, and order operational interventions.</p>
+                        </div>
+                        <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                            <!-- Left: Detailed Table -->
+                            <div class="xl:col-span-8 overflow-x-auto">
+                                <table class="w-full text-left text-[11px] border border-[var(--panel-border)] rounded-lg overflow-hidden">
+                                    <thead>
+                                        <tr class="bg-black/30 text-[var(--text-main)] uppercase text-[8px] tracking-widest border-b border-[var(--panel-border)]">
+                                            <th class="p-2.5 border-r border-[var(--panel-border)]">Exception ID</th>
+                                            <th class="p-2.5 border-r border-[var(--panel-border)]">Station</th>
+                                            <th class="p-2.5 border-r border-[var(--panel-border)]">Pack</th>
+                                            <th class="p-2.5 border-r border-[var(--panel-border)]">Attribute</th>
+                                            <th class="p-2.5 border-r border-[var(--panel-border)] text-center">Value</th>
+                                            <th class="p-2.5 text-center">Workflow Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mgr-exceptions-detail-tbody" class="font-mono font-bold cursor-pointer text-[var(--text-muted)]">
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Right: Exception Review Card Overlay -->
+                            <div class="xl:col-span-4 bg-slate-900 border border-[var(--panel-border)] rounded-xl p-4 h-fit">
+                                <h3 class="font-black text-xs text-slate-200 uppercase tracking-wider mb-3 pb-2 border-b border-[var(--panel-border)]">
+                                    Acknowledge & Correct Exception
+                                </h3>
+                                <div id="mgr-exception-action-panel" class="space-y-4 text-xs">
+                                    <div class="bg-[var(--panel-bg)] p-3 rounded-lg border border-[var(--panel-border)] font-mono text-[11px] space-y-1.5 text-[var(--text-muted)]">
+                                        <div>Log ID: <strong id="ex-action-id" class="text-[var(--text-main)]">-</strong></div>
+                                        <div>Batch ID: <strong id="ex-action-pack" class="text-[var(--text-main)]">-</strong></div>
+                                        <div>Terminal: <strong id="ex-action-station" class="text-[var(--text-main)]">-</strong></div>
+                                        <div>Breached Value: <strong id="ex-action-value" class="text-failure-red">-</strong></div>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Manager Intervention Notes</label>
+                                        <textarea id="ex-action-notes" rows="3" placeholder="Specify authorization code, engineering sign-off statements, or core physical line adjustment values..." class="w-full bg-[var(--panel-bg)] text-[var(--text-main)] border border-[var(--panel-border)] p-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-porta-red"></textarea>
+                                    </div>
+                                    <div class="space-y-2 pt-2 border-t border-[var(--panel-border)]">
+                                        <button onclick="resolveExceptionAction('RELEASE')" class="w-full bg-positive-green hover:bg-emerald-600 text-white py-2 rounded-lg font-black uppercase text-[10px] tracking-widest transition">
+                                            Authorize General Release
+                                        </button>
+                                        <button onclick="resolveExceptionAction('QUARANTINE')" class="w-full bg-review-purple hover:bg-indigo-400 text-slate-900 py-2 rounded-lg font-black uppercase text-[10px] tracking-widest transition">
+                                            Escalate to Quarantine HOLD
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MGR VIEW: HOLD REGISTER DISPOSITION -->
+                    <div id="mgr-view-holds" class="hidden bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-6 shadow-md animate-fade-in">
+                        <div class="border-b border-[var(--panel-border)] pb-4 mb-4">
+                            <h2 class="font-black text-sm tracking-wider text-[var(--text-main)] uppercase">
+                                Quality Quarantine & Material Hold Registry
+                            </h2>
+                            <p class="text-xs text-[var(--text-muted)] mt-1">Locked batch products isolated on the floor awaiting mandatory managerial grade disposition.</p>
+                        </div>
+                        <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                            <!-- Left: Holds Queue -->
+                            <div class="xl:col-span-8 space-y-3" id="mgr-holds-list-container">
+                                <!-- Generated Dynamically -->
+                            </div>
+
+                            <!-- Right: Disposition Panel -->
+                            <div class="xl:col-span-4 bg-slate-900 border border-[var(--panel-border)] rounded-xl p-4 h-fit">
+                                <h3 class="font-black text-xs text-slate-200 uppercase tracking-wider mb-3 pb-2 border-b border-[var(--panel-border)]">
+                                    Engineering Grade Disposition Board
+                                </h3>
+                                <div id="mgr-hold-disposition-panel" class="space-y-4 text-xs">
+                                    <div class="bg-[var(--panel-bg)] p-3 rounded-lg border border-[var(--panel-border)] font-mono text-[11px] space-y-1.5 text-[var(--text-muted)]">
+                                        <div>Hold Unit ID: <strong id="hold-disp-id" class="text-[var(--text-main)]">-</strong></div>
+                                        <div>Affected Pack: <strong id="hold-disp-pack" class="text-[var(--text-main)]">-</strong></div>
+                                        <div>Process Stage: <strong id="hold-disp-process" class="text-[var(--text-main)]">-</strong></div>
+                                        <div>Flagged Reason: <strong id="hold-disp-reason" class="text-failure-red">-</strong></div>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)]">Discharge Reason / Comment (Required)</label>
+                                        <textarea id="hold-disp-comment" rows="3" placeholder="Record physical equipment calibrations, machine realignment stats, or core quality downgrade conditions..." class="w-full bg-[var(--panel-bg)] text-[var(--text-main)] border border-[var(--panel-border)] p-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-porta-red"></textarea>
+                                    </div>
+                                    <div class="space-y-2 pt-2 border-t border-[var(--panel-border)]">
+                                        <button onclick="submitHoldDisposition('RELEASE')" class="w-full bg-positive-green hover:bg-emerald-600 text-white py-2 rounded-lg font-black uppercase text-[10px] tracking-widest transition">
+                                            A-Grade Release to Line Run
+                                        </button>
+                                        <button onclick="submitHoldDisposition('DOWNGRADE')" class="w-full bg-alert-amber hover:bg-amber-400 text-slate-900 py-2 rounded-lg font-black uppercase text-[10px] tracking-widest transition">
+                                            Downgrade to Structural Secondary
+                                        </button>
+                                        <button onclick="submitHoldDisposition('SCRAP')" class="w-full bg-failure-red hover:bg-red-600 text-white py-2 rounded-lg font-black uppercase text-[10px] tracking-widest transition">
+                                            Decommission & Scrap Pack
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MGR VIEW: CROSS-STAGE TRACKING & GENEALOGY -->
+                    <div id="mgr-view-tracking" class="hidden bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-6 shadow-md space-y-6 animate-fade-in">
+                        <div class="border-b border-[var(--panel-border)] pb-4">
+                            <h2 class="font-black text-sm tracking-wider text-[var(--text-main)] uppercase">
+                                Cross-Stage Process Tracking & Product Genealogy
+                            </h2>
+                            <p class="text-xs text-[var(--text-muted)] mt-1">Trace raw materials, moisture indexes, and thickness variances across connected production run phases from Lathe Outfeed to final Sanding checks.</p>
+                        </div>
+
+                        <!-- Search context panel -->
+                        <div class="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-bold items-end">
+                            <div>
+                                <label class="block text-[9px] text-[var(--text-muted)] uppercase tracking-widest mb-1.5">Production Tracking Reference</label>
+                                <input type="text" id="genealogy-search-id" value="PT-20260716-0042" class="w-full bg-[var(--panel-bg)] text-[var(--text-main)] border border-[var(--panel-border)] p-2 rounded-lg font-mono uppercase focus:outline-none focus:ring-1 focus:ring-porta-red">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] text-[var(--text-muted)] uppercase tracking-widest mb-1.5">Nominal Panel Target</label>
+                                <select class="w-full bg-[var(--panel-bg)] text-[var(--text-main)] border border-[var(--panel-border)] p-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-porta-red">
+                                    <option>3.0 mm LS Structural Veneer</option>
+                                    <option>17 mm EcoPly CD Panel</option>
+                                </select>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="triggerGenealogyScan()" class="bg-porta-red hover:bg-rose-600 text-white px-5 py-2.5 rounded-lg font-black uppercase text-[10px] tracking-wider transition">
+                                    Scan Tracking ID
+                                </button>
+                            </div>
+                            <div class="text-right text-[10px] text-[var(--text-muted)]">
+                                Link Validation basis: <span class="bg-[var(--panel-bg)] text-slate-200 px-2 py-1 rounded font-mono font-bold border border-[var(--panel-border)]">TRACKING ID - LEVEL 2</span>
+                            </div>
+                        </div>
+
+                        <!-- Interactive Process Chain Stage Cards -->
+                        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4" id="genealogy-timeline-container">
+                            <!-- Generated dynamically based on scanned unit -->
+                        </div>
+
+                        <!-- Splitting / Merging Relationship Genealogy Tree -->
+                        <div class="bg-slate-900 border border-[var(--panel-border)] rounded-xl p-4 space-y-3">
+                            <h3 class="font-black text-xs text-slate-200 uppercase tracking-wider border-b border-[var(--panel-border)] pb-2">
+                                Parent / Child Material Split-Merge Tree
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+                                <div class="bg-[var(--panel-bg)] p-3 rounded-lg border border-[var(--panel-border)] text-center">
+                                    <span class="block text-[9px] text-slate-500 uppercase font-bold">Step 1: Lathe Green Run</span>
+                                    <strong class="text-blue-400 text-xs block mt-1">Lathe Pack LP-042</strong>
+                                    <span class="text-[9px] text-slate-500 block mt-1">Yields dry output batch</span>
+                                </div>
+                                <div class="bg-[var(--panel-bg)] p-3 rounded-lg border border-[var(--panel-border)] text-center relative flex flex-col justify-center items-center">
+                                    <span class="block text-[9px] text-slate-500 uppercase font-bold">Step 2: Dryer Drying split</span>
+                                    <div class="flex gap-2 justify-center mt-2 w-full">
+                                        <strong class="text-purple-400 text-xs bg-purple-950/40 px-2 py-1 rounded border border-purple-900/60">DL-118 (Failed LHS)</strong>
+                                        <strong class="text-slate-300 text-xs bg-slate-900 px-2 py-1 rounded border border-slate-800">DL-119 (Passed)</strong>
+                                    </div>
+                                </div>
+                                <div class="bg-[var(--panel-bg)] p-3 rounded-lg border border-[var(--panel-border)] text-center">
+                                    <span class="block text-[9px] text-slate-500 uppercase font-bold">Step 3: Layup Finished Merge</span>
+                                    <strong class="text-emerald-400 text-xs block mt-1">Finished panel FP-441 / FP-442</strong>
+                                    <span class="text-[9px] text-slate-500 block mt-1">100% downstream association</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stage comparison details card -->
+                        <div id="genealogy-focus-detail-card" class="bg-slate-900 border border-[var(--panel-border)] rounded-xl p-4 shadow-xl select-none relative z-50">
+                            <!-- Populated dynamically via card clicks -->
+                        </div>
+                    </div>
+
+                    <!-- MGR VIEW: INTERACTIVE PROCESS TRENDS -->
+                    <div id="mgr-view-trends" class="hidden bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-6 shadow-md space-y-6 animate-fade-in">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[var(--panel-border)] pb-4 gap-4">
+                            <div>
+                                <h2 class="font-black text-sm tracking-wider text-[var(--text-main)] uppercase">
+                                    Measured Value Versus Applied Specifications
+                                </h2>
+                                <p class="text-xs text-[var(--text-muted)] mt-1">Statistical variance plots against active limits snapshotted at record submission (unaffected by future specification shifts).</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2 text-xs font-bold">
+                                <select id="trend-form-filter" onchange="loadTrendData()" class="bg-slate-900 text-white border border-[var(--panel-border)] p-2 rounded-lg cursor-pointer">
+                                    <option value="F-001">F-001 Lathe Outfeed LHS</option>
+                                    <option value="F-003">F-003 Dryer Moisture Peak</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                            <!-- SVG Plot Graph Card -->
+                            <div class="xl:col-span-8 bg-slate-900 border border-[var(--panel-border)] rounded-xl p-4 space-y-4">
+                                <div class="flex justify-between text-xs font-bold">
+                                    <span class="text-porta-red uppercase font-black tracking-wider flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 bg-porta-red rounded-full"></span>
+                                        Process Trend Chart (Filter Adjusted Timeframe)
+                                    </span>
+                                    <span id="trend-limits-badge" class="font-mono bg-slate-950 px-2.5 py-1 rounded-lg text-slate-300 border border-slate-850">Specs: 3.01 - 3.33 mm</span>
+                                </div>
+
+                                <div class="relative w-full h-72 bg-slate-950 border border-slate-850 rounded-xl p-2">
+                                    <svg id="mgr-trend-svg" class="w-full h-full" viewBox="0 0 600 240" preserveAspectRatio="none">
+                                        <!-- Spec Limits and target references -->
+                                        <line x1="0" y1="40" x2="600" y2="40" stroke="#EF4444" stroke-dasharray="4" stroke-width="1.5" />
+                                        <line x1="0" y1="200" x2="600" y2="200" stroke="#EF4444" stroke-dasharray="4" stroke-width="1.5" />
+                                        <line x1="0" y1="120" x2="600" y2="120" stroke="#10B981" stroke-dasharray="2" stroke-width="1" />
+                                        
+                                        <text x="10" y="32" fill="#EF4444" font-size="9" font-weight="bold">Reject High Threshold</text>
+                                        <text x="10" y="112" fill="#10B981" font-size="9" font-weight="bold">Target Centerline</text>
+                                        <text x="10" y="215" fill="#EF4444" font-size="9" font-weight="bold">Reject Low Threshold</text>
+
+                                        <!-- Shift boundaries -->
+                                        <line x1="200" y1="0" x2="200" y2="240" stroke="#334155" stroke-width="1" />
+                                        <line x1="400" y1="0" x2="400" y2="240" stroke="#334155" stroke-width="1" />
+                                        <text x="205" y="15" fill="#64748B" font-size="8" font-weight="bold">Shift boundary</text>
+
+                                        <!-- Injected Path -->
+                                        <path id="mgr-trend-line-path" d="" fill="none" stroke="#D7194B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                                        <g id="mgr-trend-nodes-group"></g>
+                                    </svg>
+                                </div>
+                                <div class="flex justify-between text-[10px] text-slate-500 font-bold uppercase">
+                                    <span>Selected Window start</span>
+                                    <span>Selected Window end</span>
+                                </div>
+                            </div>
+
+                            <!-- Statistical indicators sidebar -->
+                            <div class="xl:col-span-4 bg-slate-900 border border-[var(--panel-border)] rounded-xl p-4 space-y-4">
+                                <h3 class="font-black text-xs text-slate-200 uppercase tracking-wider border-b border-slate-800 pb-2">
+                                    Process Capability Indicators
+                                </h3>
+                                <div class="grid grid-cols-2 gap-3 text-xs">
+                                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-850">
+                                        <span class="block text-[9px] text-slate-500 font-black uppercase">Sample Mean</span>
+                                        <strong id="trend-stat-mean" class="text-base font-black text-slate-200">3.19 mm</strong>
+                                    </div>
+                                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-850">
+                                        <span class="block text-[9px] text-slate-500 font-black uppercase">Std Deviation</span>
+                                        <strong id="trend-stat-stddev" class="text-base font-black text-slate-200">0.041 mm</strong>
+                                    </div>
+                                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-850">
+                                        <span class="block text-[9px] text-slate-500 font-black uppercase">Cp Capability</span>
+                                        <strong id="trend-stat-cp" class="text-base font-black text-slate-200">1.30</strong>
+                                    </div>
+                                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-850">
+                                        <span class="block text-[9px] text-slate-500 font-black uppercase">Cpk Capability</span>
+                                        <strong id="trend-stat-cpk" class="text-base font-black text-failure-red">0.78</strong>
+                                    </div>
+                                </div>
+                                <div class="bg-amber-955/30 border border-amber-900/60 p-3 rounded-lg text-[11px] text-amber-400 font-medium">
+                                    ⚠️ <strong>Low Cpk Alert:</strong> Process mean skewing towards lower specification limits. Adjustments on roller outfeed controls recommended.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MGR VIEW: ENGINEERING SPECIFICATION EDITOR -->
+                    <div id="mgr-view-config" class="hidden bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-6 shadow-md animate-fade-in">
+                        <div class="border-b border-[var(--panel-border)] pb-4 mb-4">
+                            <h2 class="font-black text-sm tracking-wider text-[var(--text-main)] uppercase">
+                                Quality Specification Administrator Portal
+                            </h2>
+                            <p class="text-xs text-[var(--text-muted)] mt-1">Restricted Administrative Workspace. Adjust operational targets, low/high warning envelopes, and reject margins.</p>
+                        </div>
+                        <div class="max-w-xl bg-slate-900 border border-[var(--panel-border)] rounded-xl p-5 space-y-4">
+                            <div class="flex items-center gap-2 mb-2 pb-2 border-b border-slate-800">
+                                <span class="bg-porta-red text-white text-[9px] font-black rounded-md px-2 py-0.5 uppercase tracking-wider">Secured Access</span>
+                                <span class="text-xs text-slate-500 font-semibold">Changes are committed and distributed to terminals instantly</span>
+                            </div>
+
+                            <div class="space-y-4 text-xs">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1.5">Target Form Controller</label>
+                                        <select id="config-form-select" onchange="loadConfigSpecForm()" class="w-full bg-slate-950 text-slate-100 border border-[var(--panel-border)] p-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-porta-red">
+                                            <option value="F-001">F-001 Lathe Outfeed LHS</option>
+                                            <option value="F-003">F-003 Dryer Moisture Max</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block font-bold text-slate-400 mb-1.5">Revision Status</label>
+                                        <input type="text" value="Active Revision 0.3.1" readonly class="w-full bg-slate-950 text-slate-500 border border-[var(--panel-border)] p-2 rounded-lg font-mono">
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-dashed border-slate-800 pt-4 space-y-3">
+                                    <h3 class="font-bold text-[11px] text-slate-200 uppercase tracking-wider">Configure Tolerance Boundaries</h3>
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="block text-[9px] font-bold text-slate-500 mb-1.5">REJECT LOW LIMIT</label>
+                                            <input type="number" step="0.01" id="config-low-limit" value="3.01" class="w-full bg-slate-950 text-white border border-[var(--panel-border)] p-2 rounded-lg text-center font-mono font-black focus:ring-1 focus:ring-porta-red focus:outline-none">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-bold text-slate-500 mb-1.5">PREFERRED TARGET</label>
+                                            <input type="number" step="0.01" id="config-target-limit" value="3.22" class="w-full bg-slate-950 text-white border border-[var(--panel-border)] p-2 rounded-lg text-center font-mono font-black focus:ring-1 focus:ring-porta-red focus:outline-none">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[9px] font-bold text-slate-500 mb-1.5">REJECT HIGH LIMIT</label>
+                                            <input type="number" step="0.01" id="config-high-limit" value="3.33" class="w-full bg-slate-950 text-white border border-[var(--panel-border)] p-2 rounded-lg text-center font-mono font-black focus:ring-1 focus:ring-porta-red focus:outline-none">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="pt-4 border-t border-slate-800 flex justify-end">
+                                    <button onclick="commitSpecChanges()" class="bg-porta-red hover:bg-rose-600 text-white px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-wider transition">
+                                        Commit & Distribute Specification
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MGR VIEW: TAMPER-EVIDENT AUDIT EVENTS -->
+                    <div id="mgr-view-audit" class="hidden bg-[var(--card-inner)] border border-[var(--panel-border)] rounded-xl p-6 shadow-md animate-fade-in">
+                        <div class="border-b border-[var(--panel-border)] pb-4 mb-4">
+                            <h2 class="font-black text-sm tracking-wider text-[var(--text-main)] uppercase">
+                                Tamper-Evident Quality System Audit Ledger
+                            </h2>
+                            <p class="text-xs text-[var(--text-muted)] mt-1">Immutable transaction ledger capturing raw entry modifications, specification edits, and manager authorizations.</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border border-[var(--panel-border)] rounded-lg overflow-hidden">
+                                <thead>
+                                    <tr class="bg-black/30 text-[var(--text-main)] uppercase text-[8px] tracking-widest border-b border-[var(--panel-border)]">
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Audit ID</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Timestamp</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Event Action</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Old Snapshot</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">New Snapshot</th>
+                                        <th class="p-3 border-r border-[var(--panel-border)]">Operator</th>
+                                        <th class="p-3">Reason Statements</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mgr-audit-tbody" class="font-mono text-[11px] text-[var(--text-muted)]">
+                                    <!-- Dynamic Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+            </main>
+        </div>
+
+        <!-- ==========================================================================
+             3. COMMON APPLICATION FOOTER
+             ========================================================================== -->
+        <footer class="bg-black/40 border-t border-[var(--panel-border)] p-4 flex flex-col sm:flex-row gap-3 justify-between items-center select-none text-xs font-bold text-[var(--text-muted)]">
+            <div>
+                Porta Ignition Quality System Core Framework &copy; 2026. All rights reserved.
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="flex items-center gap-1 text-[var(--text-muted)]">
+                    <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                    Terminal DataSource: <span class="font-mono text-[var(--text-main)] font-black">site_quality_control (jdbc/postgres)</span>
+                </span>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Live Toast Alert Holder inside the DOM -->
+    <div id="toast-holder" class="fixed bottom-6 right-6 z-[3000] flex flex-col gap-2"></div>
+
+    <!-- Rich Tooltip for SVG Trend Charts -->
+    <div id="trend-tooltip" class="absolute hidden bg-slate-950 border-l-4 border-porta-red p-3.5 rounded-xl shadow-2xl text-xs font-semibold z-[4000] pointer-events-none transition-all duration-150 max-w-xs min-w-[220px] text-white border border-[var(--panel-border)]"></div>
+
+    <!-- ==========================================================================
+         4. CORE BUSINESS LOGIC & STATE CONTROLLER
+         ========================================================================== -->
+    <script>
+        // System Specifications Baseline State
+        let specifications = {
+            'F-001': { low: 3.01, target: 3.22, high: 3.33, unit: 'mm' },
+            'F-003': { low: 8.00, target: 12.00, high: 18.00, unit: '%' },
+            'F-006': { low: 3.01, target: 3.22, high: 3.29, unit: 'mm' },
+            'F-013': { low: 17.50, target: 18.00, high: 18.20, unit: 'mm' }
+        };
+
+        // Current Active Form State values for Technician workspace
+        let activeFormCode = 'F-001';
+        let activeFormData = {}; 
+
+        // Live Historical Dataset Base Array (With explicit real timestamps)
+        let rawInspectionsDataset = [
+            { id: 'LAT-20260716-0042', timestamp: '2026-07-16T10:08:43', formCode: 'F-001', pack: 'P260716-042', values: { rhs: 3.18, mid: 3.22, lhs: 2.94, comment: 'Thickness drifting thin on left side. Adjusting lathe guides.' }, status: 'FAIL' },
+            { id: 'LAT-20260716-0038', timestamp: '2026-07-16T09:05:12', formCode: 'F-001', pack: 'P260716-038', values: { rhs: 3.19, mid: 3.23, lhs: 3.20, comment: 'Standard hourly run. Product meets structural grade requirements.' }, status: 'PASS' },
+            { id: 'DRY-20260716-0015', timestamp: '2026-07-16T09:52:00', formCode: 'F-003', pack: 'L260716-015', values: { rhs: 11.2, mid: 11.8, lhs: 12.1, comment: 'Dryer zone parameters nominal.' }, status: 'PASS' },
+            { id: 'CMP-20260716-0306', timestamp: '2026-07-16T09:31:00', formCode: 'F-006', pack: 'C260716-306', values: { rhs: 3.18, mid: 3.20, lhs: 3.21, comment: 'Composer layup test verified.' }, status: 'PASS' },
+            { id: 'LAT-20260715-0011', timestamp: '2026-07-15T14:20:00', formCode: 'F-001', pack: 'P260715-011', values: { rhs: 3.21, mid: 3.22, lhs: 3.20, comment: 'Completed final run of yesterday shift.' }, status: 'PASS' },
+            { id: 'LAT-20260715-0010', timestamp: '2026-07-15T11:15:00', formCode: 'F-001', pack: 'P260715-010', values: { rhs: 3.15, mid: 3.12, lhs: 2.99, comment: 'Slight green veneer structural waviness noticed.' }, status: 'FAIL' },
+            { id: 'DRY-20260715-0008', timestamp: '2026-07-15T08:30:00', formCode: 'F-003', pack: 'L260715-008', values: { rhs: 14.1, mid: 15.0, lhs: 14.8, comment: 'Moisture values uniform.' }, status: 'PASS' }
+        ];
+
+        let inspections = [];
+
+        // Historical Exceptions List
+        let rawExceptionsDataset = [
+            { id: 'EX-0042', timestamp: '2026-07-16T10:08:43', formCode: 'F-001', pack: 'P260716-042', failedAttribute: 'Thickness Left (LHS)', loggedValue: '2.94 mm', workflowState: 'RECHECK 1' },
+            { id: 'EX-0021', timestamp: '2026-07-16T08:12:00', formCode: 'F-003', pack: 'L260716-016', failedAttribute: 'Zone Moisture Peak', loggedValue: '22.1 %', workflowState: 'HOLD' },
+            { id: 'EX-0010', timestamp: '2026-07-15T11:15:00', formCode: 'F-001', pack: 'P260715-010', failedAttribute: 'Thickness Left (LHS)', loggedValue: '2.99 mm', workflowState: 'RESOLVED' }
+        ];
+        let exceptions = [];
+
+        // Material Holds Ledger
+        let rawQuarantineHoldsDataset = [
+            { id: 'HLD-0016', pack: 'L260716-016', process: 'Dryer Outfeed Checks (F-003)', reason: 'Moisture content peak at 22.1% exceeded 18.0% specification bounds', timestamp: '2026-07-16T08:12:00' },
+            { id: 'HLD-0010', pack: 'P260715-010', process: 'Lathe Outfeed Logs (F-001)', reason: 'Thickness bounds breached at 2.99 mm target deviation limits', timestamp: '2026-07-15T11:15:00' }
+        ];
+        let quarantineHolds = [];
+
+        // System Audit Event trails mockup
+        let auditTrail = [
+            { id: 'AUD-0001', timestamp: '16/07/2026 06:15:22', action: 'Form Revision Activated', oldVal: 'Draft 0.2', newVal: 'Active Draft 0.3.1', operator: 'Admin_Designer', reason: 'Formalizing verification mapping of nineteen controlled forms' }
+        ];
+
+        let activeRole = 'technician';
+        let activeTechView = 'home';
+        let activeMgrView = 'overview';
+        let liveTelemetryTimer = null;
+
+        let filterStartDate = null;
+        let filterEndDate = null;
+
+        // Dynamic theme switching implementation
+        function handleThemeChange() {
+            const selected = document.getElementById("theme-selector").value;
+            const body = document.body;
+            
+            // Remove previous classes
+            body.classList.remove("theme-hp-gray", "theme-midnight", "theme-sage");
+            
+            if (selected === "gray") {
+                body.classList.add("theme-hp-gray");
+                triggerToast("Workstation theme: Industrial Gray (Light) applied.", "indigo");
+            } else if (selected === "midnight") {
+                body.classList.add("theme-midnight");
+                triggerToast("Workstation theme: Midnight Obsidian applied.", "indigo");
+            } else if (selected === "sage") {
+                body.classList.add("theme-sage");
+                triggerToast("Workstation theme: Ergonomic Soft Sage applied.", "green");
+            } else {
+                triggerToast("Workstation theme: HP Slate (Default Dark) applied.", "indigo");
+            }
+
+            // Force refresh of dynamic components containing computed CSS colors
+            if (activeTechView === 'form' && activeRole === 'technician') {
+                renderDynamicFormInputs();
+                evaluateFormMetrics(false);
+            }
+        }
+
+        // Setup baseline date-times
+        function setDefaultTimeframes() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+
+            document.getElementById("filter-start-date").value = `${yyyy}-${mm}-${dd}`;
+            document.getElementById("filter-end-date").value = `${yyyy}-${mm}-${dd}`;
+
+            applyDateFilters();
+        }
+
+        // Dropdown Preset change handler
+        function handlePresetChange() {
+            const val = document.getElementById("global-time-preset").value;
+            const customContainer = document.getElementById("custom-datetime-container");
+
+            if (val === "custom") {
+                customContainer.classList.remove("hidden");
+            } else {
+                customContainer.classList.add("hidden");
+                
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+
+                if (val === "current-shift") {
+                    document.getElementById("filter-start-date").value = `${yyyy}-${mm}-${dd}`;
+                    document.getElementById("filter-start-time").value = "06:00";
+                    document.getElementById("filter-end-date").value = `${yyyy}-${mm}-${dd}`;
+                    document.getElementById("filter-end-time").value = "18:00";
+                } else if (val === "today") {
+                    document.getElementById("filter-start-date").value = `${yyyy}-${mm}-${dd}`;
+                    document.getElementById("filter-start-time").value = "00:00";
+                    document.getElementById("filter-end-date").value = `${yyyy}-${mm}-${dd}`;
+                    document.getElementById("filter-end-time").value = "23:59";
+                } else if (val === "yesterday") {
+                    const yesterday = new Date();
+                    yesterday.setDate(today.getDate() - 1);
+                    const y_yyyy = yesterday.getFullYear();
+                    const y_mm = String(yesterday.getMonth() + 1).padStart(2, '0');
+                    const y_dd = String(yesterday.getDate()).padStart(2, '0');
+
+                    document.getElementById("filter-start-date").value = `${y_yyyy}-${y_mm}-${y_dd}`;
+                    document.getElementById("filter-start-time").value = "00:00";
+                    document.getElementById("filter-end-date").value = `${y_yyyy}-${y_mm}-${y_dd}`;
+                    document.getElementById("filter-end-time").value = "23:59";
+                } else if (val === "last-24h") {
+                    const yesterday = new Date();
+                    yesterday.setDate(today.getDate() - 1);
+                    const y_yyyy = yesterday.getFullYear();
+                    const y_mm = String(yesterday.getMonth() + 1).padStart(2, '0');
+                    const y_dd = String(yesterday.getDate()).padStart(2, '0');
+
+                    document.getElementById("filter-start-date").value = `${y_yyyy}-${y_mm}-${y_dd}`;
+                    document.getElementById("filter-start-time").value = String(today.getHours()).padStart(2, '0') + ":" + String(today.getMinutes()).padStart(2, '0');
+                    document.getElementById("filter-end-date").value = `${yyyy}-${mm}-${dd}`;
+                    document.getElementById("filter-end-time").value = String(today.getHours()).padStart(2, '0') + ":" + String(today.getMinutes()).padStart(2, '0');
+                }
+                applyDateFilters();
+            }
+        }
+
+        // Apply Date Filters logic to query memory-simulated datasets
+        function applyDateFilters() {
+            const startDateStr = document.getElementById("filter-start-date").value;
+            const startTimeStr = document.getElementById("filter-start-time").value || "00:00";
+            const endDateStr = document.getElementById("filter-end-date").value;
+            const endTimeStr = document.getElementById("filter-end-time").value || "23:59";
+
+            filterStartDate = new Date(`${startDateStr}T${startTimeStr}`);
+            filterEndDate = new Date(`${endDateStr}T${endTimeStr}`);
+
+            if (isNaN(filterStartDate.getTime()) || isNaN(filterEndDate.getTime())) {
+                triggerToast("Date range error: Please choose a valid target date.", "red");
+                return;
+            }
+
+            const labelEl = document.getElementById("active-time-window-label");
+            const presetVal = document.getElementById("global-time-preset").value;
+            
+            if (presetVal === 'current-shift') labelEl.innerText = "Current Day Shift Only";
+            else if (presetVal === 'today') labelEl.innerText = "Today's Log Entries";
+            else if (presetVal === 'yesterday') labelEl.innerText = "Yesterday's Archive Logs";
+            else if (presetVal === 'last-24h') labelEl.innerText = "Rolling 24 Hour Buffer";
+            else labelEl.innerText = "Custom Window Frame Set";
+
+            inspections = rawInspectionsDataset.filter(ins => {
+                const insTime = new Date(ins.timestamp);
+                return insTime >= filterStartDate && insTime <= filterEndDate;
+            });
+
+            exceptions = rawExceptionsDataset.filter(ex => {
+                const exTime = new Date(ex.timestamp);
+                return exTime >= filterStartDate && exTime <= filterEndDate;
+            });
+
+            quarantineHolds = rawQuarantineHoldsDataset.filter(hold => {
+                const holdTime = new Date(hold.timestamp);
+                return holdTime >= filterStartDate && holdTime <= filterEndDate;
+            });
+
+            if (activeRole === 'technician') {
+                setTechView(activeTechView);
+            } else {
+                setMgrView(activeMgrView);
+            }
+
+            const activeExCount = exceptions.filter(e => e.workflowState !== 'RESOLVED').length;
+            document.getElementById("aside-badge-exceptions").innerText = activeExCount;
+            document.getElementById("aside-badge-holds").innerText = quarantineHolds.length;
+
+            triggerToast(`Synchronized database index: Mapped ${inspections.length} matching shift records.`, "green");
+        }
+
+        // Simulated data points timing strings
+        function getSimulatedTimeForRun(i, totalPoints) {
+            const hoursAgo = totalPoints - 1 - i;
+            if (hoursAgo === 0) return "Just Now";
+            return `${hoursAgo} hr${hoursAgo > 1 ? 's' : ''} ago`;
+        }
+
+        // Show floating trend tooltip window
+        function showTrendTooltip(e, data) {
+            const tooltip = document.getElementById("trend-tooltip");
+            if (!tooltip) return;
+
+            let borderClass = "border-l-4 border-emerald-500";
+            if (data.status.includes("REJECTED")) {
+                borderClass = "border-l-4 border-failure-red";
+            } else if (data.status.includes("WARNING")) {
+                borderClass = "border-l-4 border-alert-amber";
+            }
+
+            tooltip.className = `absolute bg-slate-950 ${borderClass} p-3.5 rounded-xl shadow-2xl text-xs font-semibold z-[4000] pointer-events-none text-white flex flex-col gap-1.5 min-w-[220px] border border-slate-800 backdrop-blur-md`;
+            
+            tooltip.innerHTML = `
+                <div class="flex justify-between items-center border-b border-slate-800 pb-1.5 mb-0.5">
+                    <span class="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Inspection Run #${data.runId}</span>
+                    <span class="text-[9px] font-mono font-bold text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">${data.time}</span>
+                </div>
+                <div class="flex justify-between items-center pt-1">
+                    <span class="text-slate-400 text-[11px] font-medium">Outcome Value:</span>
+                    <strong class="text-white text-sm font-mono font-black">${data.value} ${data.unit}</strong>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400 text-[11px] font-medium">Evaluation:</span>
+                    <span class="${data.colorClass} font-black text-[10px] uppercase tracking-wider">${data.status}</span>
+                </div>
+                <div class="border-t border-dashed border-slate-800 pt-1.5 mt-1.5 text-[10px] text-slate-400 font-mono space-y-1">
+                    <div class="flex justify-between"><span>Low Limit:</span> <span class="text-slate-200 font-semibold">${data.low} ${data.unit}</span></div>
+                    <div class="flex justify-between"><span>Nominal Spec:</span> <span class="text-slate-200 font-semibold">${data.target} ${data.unit}</span></div>
+                    <div class="flex justify-between"><span>High Limit:</span> <span class="text-slate-200 font-semibold">${data.high} ${data.unit}</span></div>
+                </div>
+            `;
+            
+            tooltip.style.left = (e.pageX + 15) + "px";
+            tooltip.style.top = (e.pageY - 95) + "px";
+            tooltip.style.opacity = "1";
+            tooltip.classList.remove("hidden");
+        }
+
+        function moveTrendTooltip(e) {
+            const tooltip = document.getElementById("trend-tooltip");
+            if (tooltip) {
+                tooltip.style.left = (e.pageX + 15) + "px";
+                tooltip.style.top = (e.pageY - 95) + "px";
+            }
+        }
+
+        function hideTrendTooltip() {
+            const tooltip = document.getElementById("trend-tooltip");
+            if (tooltip) {
+                tooltip.classList.add("hidden");
+                tooltip.style.opacity = "0";
+            }
+        }
+
+        function setWorkspaceRole(role) {
+            activeRole = role;
+            
+            // Sync Buttons Layouts
+            const btnTech = document.getElementById("btn-switch-tech");
+            const btnMgr = document.getElementById("btn-switch-mgr");
+            const navTechLinks = document.getElementById("nav-tech-links");
+            const navMgrLinks = document.getElementById("nav-mgr-links");
+            const techContainer = document.getElementById("tech-workspace-container");
+            const mgrContainer = document.getElementById("mgr-workspace-container");
+            const lblWorkspace = document.getElementById("aside-workspace-lbl");
+            const lblUser = document.getElementById("aside-user-display");
+
+            if (role === 'technician') {
+                btnTech.className = "px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all duration-150 bg-porta-red text-white";
+                btnMgr.className = "px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all duration-150 text-[var(--text-muted)] hover:text-[var(--text-main)]";
+                navTechLinks.classList.remove("hidden");
+                navMgrLinks.classList.add("hidden");
+                techContainer.classList.remove("hidden");
+                mgrContainer.classList.add("hidden");
+                lblWorkspace.innerText = "QC Technician Hub";
+                lblWorkspace.className = "text-sm font-bold text-porta-red uppercase block";
+                lblUser.innerText = "QC_Technician_Account";
+                setTechView(activeTechView);
+            } else {
+                btnMgr.className = "px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all duration-150 bg-porta-red text-white";
+                btnTech.className = "px-4 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all duration-150 text-[var(--text-muted)] hover:text-[var(--text-main)]";
+                navTechLinks.classList.add("hidden");
+                navMgrLinks.classList.remove("hidden");
+                techContainer.classList.add("hidden");
+                mgrContainer.classList.remove("hidden");
+                lblWorkspace.innerText = "QC Manager Console";
+                lblWorkspace.className = "text-sm font-bold text-review-purple uppercase block";
+                lblUser.innerText = "M_Patterson_QC_Manager";
+                setMgrView(activeMgrView);
+            }
+        }
+
+        // ==========================================================================
+        // MGR VIEW: INTERACTIVE PROCESS TRENDS
+        // ==========================================================================
+        let latheTrendPoints = [120, 115, 125, 110, 130, 105, 122, 118, 125, 130, 145, 155, 135, 120, 110, 95, 80, 75, 70, 65, 85, 90, 80, 75, 60, 55, 45, 38, 30, 20];
+        let dryerTrendPoints = [90, 95, 100, 110, 105, 115, 120, 125, 130, 140, 145, 150, 160, 175, 190, 210, 220, 205, 195, 180, 170, 160, 155, 140, 130, 120, 110, 100, 95, 90];
+
+        function loadTrendData() {
+            const filter = document.getElementById("trend-form-filter").value;
+            const svg = document.getElementById("mgr-trend-svg");
+            const path = document.getElementById("mgr-trend-line-path");
+            const nodesGroup = document.getElementById("mgr-trend-nodes-group");
+            
+            if (!svg || !path) return;
+
+            nodesGroup.innerHTML = "";
+
+            const targetPoints = filter === 'F-001' ? latheTrendPoints : dryerTrendPoints;
+            const totalPoints = targetPoints.length;
+            const xStep = 600 / (totalPoints - 1);
+
+            const decimals = filter === 'F-003' ? 1 : 2;
+            const spec = specifications[filter];
+
+            let dPath = "";
+            for (let i = 0; i < totalPoints; i++) {
+                const x = i * xStep;
+                const y = targetPoints[i];
+
+                if (i === 0) {
+                    dPath = `M ${x} ${y}`;
+                } else {
+                    dPath += ` L ${x} ${y}`;
+                }
+
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", x);
+                circle.setAttribute("cy", y);
+                circle.setAttribute("r", 5.5); 
+                circle.setAttribute("class", "cursor-pointer transition-all duration-150 hover:scale-150 hover:stroke-white hover:stroke-[1.5px]");
+
+                let statusStr = "PASS";
+                let statusColor = "text-emerald-400";
+
+                if (y < 40 || y > 200) {
+                    circle.setAttribute("fill", "#EF4444"); 
+                    statusStr = "REJECTED (OUT OF SPEC)";
+                    statusColor = "text-failure-red";
+                } else if (y <= 60 || y >= 180) {
+                    circle.setAttribute("fill", "#F59E0B"); 
+                    statusStr = "WARNING (LIMIT CAUTION)";
+                    statusColor = "text-alert-amber";
+                } else {
+                    circle.setAttribute("fill", "#10B981"); 
+                }
+
+                const valMapped = (spec.high - (y - 40) * (spec.high - spec.low) / 160).toFixed(decimals);
+
+                circle.addEventListener('mouseover', (e) => {
+                    showTrendTooltip(e, {
+                        runId: i + 1,
+                        time: getSimulatedTimeForRun(i, totalPoints),
+                        value: valMapped,
+                        unit: spec.unit,
+                        status: statusStr,
+                        colorClass: statusColor,
+                        low: spec.low,
+                        high: spec.high,
+                        target: spec.target
+                    });
+                });
+
+                circle.addEventListener('mousemove', (e) => {
+                    moveTrendTooltip(e);
+                });
+
+                circle.addEventListener('mouseout', () => {
+                    hideTrendTooltip();
+                });
+
+                nodesGroup.appendChild(circle);
+            }
+
+            path.setAttribute("d", dPath);
+
+            document.getElementById("trend-limits-badge").innerText = `Specs bounds: ${spec.low} - ${spec.high} ${spec.unit}`;
+            document.getElementById("trend-stat-mean").innerText = `${spec.target} ${spec.unit}`;
+        }
+
+        function setTechView(view, formCode = null) {
+            activeTechView = view;
+            
+            const navButtons = ['home', 'exceptions', 'holds'];
+            navButtons.forEach(btn => {
+                const el = document.getElementById(`btn-tech-${btn}`);
+                if (el) el.className = "w-full text-left px-3 py-2 text-xs font-semibold rounded hover:bg-black/20 text-[var(--text-muted)]";
+            });
+            const formButtons = ['F-001', 'F-003', 'F-006', 'F-013'];
+            formButtons.forEach(f => {
+                const el = document.getElementById(`btn-tech-${f.toLowerCase()}`);
+                if (el) el.className = "w-full text-left px-3 py-2 text-xs font-semibold rounded hover:bg-black/20 text-[var(--text-muted)] flex items-center justify-between";
+            });
+
+            document.getElementById("tech-view-home").classList.add("hidden");
+            document.getElementById("tech-view-form").classList.add("hidden");
+            document.getElementById("tech-view-exceptions").classList.add("hidden");
+            document.getElementById("tech-view-holds").classList.add("hidden");
+
+            if (view === 'home') {
+                document.getElementById("tech-view-home").classList.remove("hidden");
+                document.getElementById("btn-tech-home").className = "w-full text-left px-3 py-2 text-xs font-bold uppercase rounded-lg tracking-wider bg-porta-red text-white";
+                renderTechHome();
+            } else if (view === 'form') {
+                formCode = formCode || activeFormCode || 'F-001';
+                activeFormCode = formCode;
+                
+                document.getElementById("tech-view-form").classList.remove("hidden");
+                const btnActive = document.getElementById(`btn-tech-${formCode.toLowerCase()}`);
+                if (btnActive) btnActive.className = "w-full text-left px-3 py-2 text-xs font-bold uppercase rounded-lg tracking-wider bg-porta-red text-white flex items-center justify-between";
+                loadTechFormInstance(formCode);
+            } else if (view === 'exceptions') {
+                document.getElementById("tech-view-exceptions").classList.remove("hidden");
+                document.getElementById("btn-tech-exceptions").className = "w-full text-left px-3 py-2 text-xs font-bold uppercase rounded-lg tracking-wider bg-porta-red text-white";
+                renderTechExceptionsTable();
+            } else if (view === 'holds') {
+                document.getElementById("tech-view-holds").classList.remove("hidden");
+                document.getElementById("btn-tech-holds").className = "w-full text-left px-3 py-2 text-xs font-bold uppercase rounded-lg tracking-wider bg-porta-red text-white";
+                renderTechHoldsTable();
+            }
+        }
+
+        function renderTechHome() {
+            document.getElementById("tech-shift-complete").innerText = inspections.length + " / 9";
+            document.getElementById("tech-shift-exceptions").innerText = exceptions.length;
+            document.getElementById("tech-shift-rechecks").innerText = exceptions.filter(ex => ex.workflowState.includes("RECHECK")).length;
+            
+            const openRechecksContainer = document.getElementById("tech-open-rechecks-container");
+            openRechecksContainer.innerHTML = "";
+            
+            const activeRechecks = exceptions.filter(ex => ex.workflowState.includes("RECHECK"));
+            if (activeRechecks.length === 0) {
+                openRechecksContainer.innerHTML = `
+                    <div class="p-3 bg-emerald-950/40 border border-emerald-900/60 text-emerald-400 text-xs font-bold uppercase rounded-lg">
+                        ✔️ Controlled Baseline: No active rechecks required on floor.
+                    </div>
+                `;
+            } else {
+                activeRechecks.forEach(ex => {
+                    const div = document.createElement("div");
+                    div.className = "bg-black/20 border border-[var(--panel-border)] p-3 rounded-lg flex justify-between items-center text-xs font-semibold";
+                    div.innerHTML = `
+                        <div>
+                            <span class="inline-block px-1.5 py-0.5 bg-alert-amber text-slate-950 text-[9px] font-black rounded uppercase">${ex.workflowState}</span>
+                            <span class="ml-2 font-bold text-slate-200">${ex.pack} | ${ex.failedAttribute}</span>
+                        </div>
+                        <button onclick="setTechView('form', '${ex.formCode}')" class="bg-black/40 hover:bg-black/60 text-white px-3 py-1 rounded text-[10px] uppercase font-black tracking-wider border border-[var(--panel-border)]">
+                            Resolve
+                        </button>
+                    `;
+                    openRechecksContainer.appendChild(div);
+                });
+            }
+
+            const recentTable = document.getElementById("tech-home-recent-table");
+            recentTable.innerHTML = "";
+
+            if (inspections.length === 0) {
+                recentTable.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="p-4 text-center text-[var(--text-muted)] font-bold italic">No records found for filtered date timeframe.</td>
+                    </tr>
+                `;
+            } else {
+                inspections.slice(0, 4).forEach(ins => {
+                    const tr = document.createElement("tr");
+                    tr.className = "border-b border-[var(--panel-border)] hover:bg-black/10 cursor-pointer";
+                    tr.onclick = () => setTechView('form', ins.formCode);
+                    
+                    const displayTime = ins.timestamp.split('T')[1]?.substring(0, 5) || "Logged";
+                    let badgeClass = ins.status === 'PASS' ? 'bg-positive-green text-white' : 'bg-failure-red text-white';
+                    tr.innerHTML = `
+                        <td class="p-3 text-[var(--text-muted)]">${displayTime}</td>
+                        <td class="p-3 text-[var(--text-main)]">${ins.formCode} Process Run</td>
+                        <td class="p-3 text-blue-400 underline">${ins.pack}</td>
+                        <td class="p-3 text-center"><span class="px-2 py-0.5 rounded text-[8px] font-bold tracking-wider ${badgeClass}">${ins.status}</span></td>
+                    `;
+                    recentTable.appendChild(tr);
+                });
+            }
+        }
+
+        function renderTechExceptionsTable() {
+            const tbody = document.getElementById("tech-exceptions-tbody");
+            tbody.innerHTML = "";
+
+            if (exceptions.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="p-6 text-center text-[var(--text-muted)] italic font-bold">No quality exceptions logged inside the active time window.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            exceptions.forEach(ex => {
+                const tr = document.createElement("tr");
+                tr.className = "border-b border-[var(--panel-border)] hover:bg-black/10";
+                tr.innerHTML = `
+                    <td class="p-3 text-blue-400 underline">${ex.id}</td>
+                    <td class="p-3 text-[var(--text-muted)]">${ex.formCode}</td>
+                    <td class="p-3 text-slate-100">${ex.pack}</td>
+                    <td class="p-3 text-slate-300">${ex.failedAttribute}</td>
+                    <td class="p-3 text-center text-failure-red font-bold">${ex.loggedValue}</td>
+                    <td class="p-3 text-center"><span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[9px] font-black border border-amber-500/30">${ex.workflowState}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderTechHoldsTable() {
+            const tbody = document.getElementById("tech-holds-tbody");
+            tbody.innerHTML = "";
+
+            if (quarantineHolds.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="p-6 text-center text-[var(--text-muted)] italic font-bold">Quarantine holds registry clear for filtered time frame.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            quarantineHolds.forEach(q => {
+                const tr = document.createElement("tr");
+                tr.className = "border-b border-[var(--panel-border)] hover:bg-black/10";
+                
+                const formatTime = q.timestamp.replace('T', ' ');
+                tr.innerHTML = `
+                    <td class="p-3 text-blue-400 font-mono">${q.id}</td>
+                    <td class="p-3 font-mono text-slate-200">${q.pack}</td>
+                    <td class="p-3 text-slate-300">${q.process}</td>
+                    <td class="p-3 text-failure-red font-semibold">${q.reason}</td>
+                    <td class="p-3 text-[var(--text-muted)] font-mono">${formatTime}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ==========================================================================
+        // REUSABLE INSPECTION FORM LOADER (ASM Range-Guages implementation)
+        // ==========================================================================
+        function loadTechFormInstance(formCode) {
+            const formTitle = document.getElementById("active-form-title");
+            const formDoc = document.getElementById("active-form-ref-doc");
+            const activePack = document.getElementById("form-active-pack");
+            const limitsBadge = document.getElementById("active-limits-label");
+
+            const spec = specifications[formCode];
+            limitsBadge.innerText = `Limits: ${spec.low} - ${spec.high} ${spec.unit} | Target: ${spec.target} ${spec.unit}`;
+
+            if (formCode === 'F-001') {
+                formTitle.innerHTML = `<span class="w-2.5 h-4 bg-porta-red rounded-sm"></span> F-001 Lathe Outfeed Process Control`;
+                formDoc.innerText = `Ref Document: 05-20-39 Rev 27/02/2026 | Calibration Standard TG-04`;
+                activePack.innerText = "LP-042";
+                activeFormData = { rhs: 3.18, mid: 3.22, lhs: 2.94, comment: '' };
+            } else if (formCode === 'F-003') {
+                formTitle.innerHTML = `<span class="w-2.5 h-4 bg-porta-red rounded-sm"></span> F-003 Dryer Moisture Outfeed Control`;
+                formDoc.innerText = `Ref Document: 05-20-02 Rev 05/11/2025 | Probe Calibration PG-12`;
+                activePack.innerText = "DL-118";
+                activeFormData = { rhs: 10.5, mid: 12.1, lhs: 11.8, comment: '' };
+            } else if (formCode === 'F-006') {
+                formTitle.innerHTML = `<span class="w-2.5 h-4 bg-porta-red rounded-sm"></span> F-006 Composer Outfeed Assembly Log`;
+                formDoc.innerText = `Ref Document: 05-20-78 Rev 12/01/2026 | Spec Standard F-006`;
+                activePack.innerText = "CP-301";
+                activeFormData = { rhs: 3.15, mid: 3.20, lhs: 3.21, comment: '' };
+            } else if (formCode === 'F-013') {
+                formTitle.innerHTML = `<span class="w-2.5 h-4 bg-porta-red rounded-sm"></span> F-013 Sanding Matrix Thickness Log`;
+                formDoc.innerText = `Ref Document: 05-20-01 Rev 28/11/2025 | Micrometer Spec SG-02`;
+                activePack.innerText = "FP-441";
+                activeFormData = { rhs: 17.80, mid: 18.02, lhs: 17.95, comment: '' };
+            }
+
+            renderDynamicFormInputs();
+            evaluateFormMetrics(false); 
+            renderFormLocalShiftLog();
+        }
+
+        function renderDynamicFormInputs() {
+            const container = document.getElementById("form-measurements-list");
+            container.innerHTML = "";
+
+            const spec = specifications[activeFormCode];
+            
+            // Generate rows for positions: Right, Middle, Left
+            const positions = [
+                { key: 'rhs', label: 'Right Side (RHS)' },
+                { key: 'mid', label: 'Middle Zone (MID)' },
+                { key: 'lhs', label: 'Left Side (LHS)' }
+            ];
+
+            positions.forEach(pos => {
+                const step = (activeFormCode === 'F-003' || activeFormCode === 'F-013') ? 0.1 : 0.01;
+                const value = activeFormData[pos.key];
+                
+                // Math for ASM range marker percentage position mapping
+                const absoluteSpan = (spec.high - spec.low) * 2; // extended border limits for visual margin
+                const lowExt = spec.low - (absoluteSpan * 0.25);
+                const highExt = spec.high + (absoluteSpan * 0.25);
+                const totalRange = highExt - lowExt;
+                
+                const specMinPct = ((spec.low - lowExt) / totalRange) * 100;
+                const specMaxPct = ((spec.high - lowExt) / totalRange) * 100;
+                const targetPct = ((spec.target - lowExt) / totalRange) * 100;
+                const valuePct = Math.max(0, Math.min(100, ((value - lowExt) / totalRange) * 100));
+
+                const row = document.createElement("div");
+                row.className = "flex flex-col space-y-2 border-b border-[var(--panel-border)] pb-4 last:border-b-0";
+                row.innerHTML = `
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <label class="w-40 text-xs font-black uppercase text-[var(--text-main)]">${pos.label}</label>
+                        <div class="flex items-center gap-1.5 flex-1 max-w-xs">
+                            <button onclick="adjustFormValue('${pos.key}', ${-step})" class="w-8 h-8 bg-black/30 border border-[var(--panel-border)] text-[var(--text-main)] rounded-lg text-lg font-black select-none hover:bg-black/55 active:scale-95">-</button>
+                            <input type="number" step="${step}" id="form-input-${pos.key}" value="${value}" oninput="manualFormInputChange('${pos.key}', this.value)" class="w-full h-8 text-center font-black border border-[var(--panel-border)] bg-[var(--panel-bg)] rounded-lg text-xs focus:ring-1 focus:ring-porta-red focus:outline-none transition-all duration-300">
+                            <button onclick="adjustFormValue('${pos.key}', ${step})" class="w-8 h-8 bg-black/30 border border-[var(--panel-border)] text-[var(--text-main)] rounded-lg text-lg font-black select-none hover:bg-black/55 active:scale-95">+</button>
+                        </div>
+                        <div id="form-badge-${pos.key}" class="w-28 py-1.5 text-center font-bold text-[9px] text-white rounded-lg uppercase select-none tracking-widest">
+                            PASS
+                        </div>
+                    </div>
+                    
+                    <!-- Glanceable High-Performance ASM Analog Indicator Bar -->
+                    <div class="pl-0 sm:pl-40 pr-2">
+                        <div class="relative w-full h-5 bg-black/40 rounded-lg overflow-hidden border border-[var(--panel-border)] flex items-center">
+                            
+                            <!-- Normal Acceptable Spec Area Highlights -->
+                            <div class="absolute h-full bg-[var(--hmi-normal-range)] opacity-40 border-l border-r border-[var(--hmi-gray)]" style="left: ${specMinPct}%; width: ${specMaxPct - specMinPct}%"></div>
+                            
+                            <!-- Engineering Target Center Tick -->
+                            <div class="absolute h-full w-[2px] bg-[var(--hmi-target-tick)] opacity-70" style="left: ${targetPct}%"></div>
+                            
+                            <!-- Dynamic Active Value Marker -->
+                            <div id="form-marker-${pos.key}" class="absolute w-3.5 h-3.5 rounded-full border border-white shadow-md z-15 transform -translate-x-1.5 transition-all duration-300" style="left: ${valuePct}%; background-color: #10B981"></div>
+                        </div>
+                        <div class="flex justify-between text-[8px] text-[var(--text-muted)] font-mono px-1.5 mt-0.5 select-none">
+                            <span>L-Reject (${spec.low}${spec.unit})</span>
+                            <span class="text-[var(--text-main)] font-semibold">Nominal (${spec.target}${spec.unit})</span>
+                            <span>H-Reject (${spec.high}${spec.unit})</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+
+            // Append Comment Textarea at the bottom
+            const commentVal = activeFormData.comment || '';
+            const commentRow = document.createElement("div");
+            commentRow.className = "flex flex-col gap-2 pt-4 mt-2 border-t border-dashed border-[var(--panel-border)]";
+            commentRow.innerHTML = `
+                <label for="form-comment-area" class="text-xs font-black uppercase text-[var(--text-muted)]">Observations & Action Notes</label>
+                <textarea id="form-comment-area" rows="2" oninput="activeFormData.comment = this.value" placeholder="Type run comments, mechanical findings, machine adjustments, or grade notes here..." class="w-full bg-black/20 text-[var(--text-main)] border border-[var(--panel-border)] p-2.5 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-porta-red">${commentVal}</textarea>
+            `;
+            container.appendChild(commentRow);
+        }
+
+        function adjustFormValue(key, step) {
+            const decimals = (activeFormCode === 'F-003' || activeFormCode === 'F-013') ? 1 : 2;
+            let currentVal = parseFloat(activeFormData[key]);
+            activeFormData[key] = parseFloat((currentVal + step).toFixed(decimals));
+            document.getElementById(`form-input-${key}`).value = activeFormData[key];
+            evaluateFormMetrics(true); 
+        }
+
+        function manualFormInputChange(key, val) {
+            let parsed = parseFloat(val);
+            if (!isNaN(parsed)) {
+                activeFormData[key] = parsed;
+                evaluateFormMetrics(true);
+            }
+        }
+
+        function evaluateFormMetrics(triggerPulse = false) {
+            const spec = specifications[activeFormCode];
+            let hasFailures = false;
+            let hasWarnings = false;
+            let failureDetail = "";
+
+            const keys = ['rhs', 'mid', 'lhs'];
+            keys.forEach(key => {
+                const val = activeFormData[key];
+                const inputEl = document.getElementById(`form-input-${key}`);
+                const badgeEl = document.getElementById(`form-badge-${key}`);
+                const markerEl = document.getElementById(`form-marker-${key}`);
+
+                let state = "PASS";
+                let pulseClass = "";
+
+                if (val < spec.low || val > spec.high) {
+                    state = "FAIL";
+                    hasFailures = true;
+                    failureDetail = `${key.toUpperCase()} (${val}${spec.unit}) exceeds specs bounds.`;
+                    pulseClass = "animate-pulse-fail";
+                } else {
+                    const range = spec.high - spec.low;
+                    if (val <= (spec.low + range * 0.1) || val >= (spec.high - range * 0.1)) {
+                        state = "WARNING";
+                        hasWarnings = true;
+                        pulseClass = "animate-pulse-warning";
+                    }
+                }
+
+                badgeEl.className = "w-28 py-1.5 text-center font-bold text-[9px] text-white rounded-lg uppercase select-none tracking-widest transition-all duration-300";
+                inputEl.className = "w-full h-8 text-center font-black border border-[var(--panel-border)] rounded-lg text-xs focus:ring-1 focus:ring-porta-red focus:outline-none transition-all duration-300";
+
+                // Re-calculate visual marker placement position
+                const absoluteSpan = (spec.high - spec.low) * 2;
+                const lowExt = spec.low - (absoluteSpan * 0.25);
+                const highExt = spec.high + (absoluteSpan * 0.25);
+                const valuePct = Math.max(0, Math.min(100, ((val - lowExt) / (highExt - lowExt)) * 100));
+                
+                if (markerEl) {
+                    markerEl.style.left = `${valuePct}%`;
+                }
+
+                if (state === "PASS") {
+                    badgeEl.innerText = "PASS";
+                    badgeEl.classList.add("bg-positive-green");
+                    inputEl.classList.add("bg-black/10", "border-emerald-900/55", "text-emerald-400");
+                    if (markerEl) markerEl.style.backgroundColor = "#10B981";
+                } else if (state === "WARNING") {
+                    badgeEl.innerText = "WARNING";
+                    badgeEl.classList.add("bg-alert-amber");
+                    inputEl.classList.add("bg-black/10", "border-amber-900/55", "text-amber-400");
+                    if (markerEl) markerEl.style.backgroundColor = "#F59E0B";
+                    if (triggerPulse) {
+                        inputEl.classList.add(pulseClass);
+                        setTimeout(() => inputEl.classList.remove(pulseClass), 2250);
+                    }
+                } else {
+                    badgeEl.innerText = "OUT OF SPEC";
+                    badgeEl.classList.add("bg-failure-red");
+                    inputEl.classList.add("bg-black/10", "border-rose-900/55", "text-rose-400");
+                    if (markerEl) markerEl.style.backgroundColor = "#EF4444";
+                    if (triggerPulse) {
+                        inputEl.classList.add(pulseClass);
+                        setTimeout(() => inputEl.classList.remove(pulseClass), 2250);
+                    }
+                }
+            });
+
+            // Update Dynamic Mitigation Guidance Panel
+            const banner = document.getElementById("form-mitigation-banner");
+            const icon = document.getElementById("form-mitigation-icon");
+            const title = document.getElementById("form-mitigation-title");
+            const desc = document.getElementById("form-mitigation-desc");
+
+            banner.className = "mt-4 border-2 rounded-xl p-4 bg-black/10 shadow-inner flex gap-3 transition-colors duration-500";
+
+            if (hasFailures) {
+                banner.classList.add("border-failure-red", "bg-rose-950/20");
+                icon.innerText = "🚨";
+                icon.className = "text-xl md:text-2xl mt-0.5 text-failure-red animate-bounce";
+                title.innerText = "SYSTEM ENFORCED WORKFLOW ACTIVE";
+                title.className = "text-xs font-black text-failure-red uppercase tracking-wider mb-1";
+                desc.innerText = `${failureDetail} Standard checklist locks are engaged. Perform correction procedures, and execute recheck intervals immediately.`;
+            } else if (hasWarnings) {
+                banner.classList.add("border-alert-amber", "bg-amber-950/20");
+                icon.innerText = "⚠";
+                icon.className = "text-xl md:text-2xl mt-0.5 text-alert-amber";
+                title.innerText = "DIAGNOSTIC LIMIT CAUTION WARNING";
+                title.className = "text-xs font-black text-alert-amber uppercase tracking-wider mb-1";
+                desc.innerText = "Measurements approaching engineering tolerance lines. Clean sensor heads and verify mechanical alignments.";
+            } else {
+                banner.classList.add("border-positive-green", "bg-emerald-950/20");
+                icon.innerText = "✔";
+                icon.className = "text-xl md:text-2xl mt-0.5 text-positive-green";
+                title.innerText = "PROCESS QUALITY SECURED & CONTROLLED";
+                title.className = "text-xs font-black text-positive-green uppercase tracking-wider mb-1";
+                desc.innerText = "All entered measurements lie safely inside nominal targets. Station limits verified and in control bounds.";
+            }
+        }
+
+        function renderFormLocalShiftLog() {
+            const tbody = document.getElementById("form-shift-log-tbody");
+            tbody.innerHTML = "";
+            
+            const filteredInspections = inspections.filter(ins => ins.formCode === activeFormCode);
+            
+            if (filteredInspections.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="p-3 text-center text-[var(--text-muted)] italic">No shift entries found inside current time window.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            filteredInspections.forEach(ins => {
+                const tr = document.createElement("tr");
+                tr.className = "border-b border-[var(--panel-border)] hover:bg-black/10 cursor-pointer transition";
+                tr.onclick = () => selectFormLocalFocusRow(ins.id);
+                
+                const timeStr = ins.timestamp.split('T')[1]?.substring(0, 5) || "Logged";
+                let highlightClass = ins.status === 'FAIL' ? 'text-failure-red' : 'text-positive-green';
+                tr.innerHTML = `
+                    <td class="p-2 border border-[var(--panel-border)] text-[10px] ${highlightClass}">${ins.status === 'FAIL' ? 'OUT OF SPEC' : 'PASS'}</td>
+                    <td class="p-2 border border-[var(--panel-border)] text-[var(--text-muted)]">${timeStr}</td>
+                    <td class="p-2 border border-[var(--panel-border)] text-blue-400 underline">${ins.pack}</td>
+                    <td class="p-2 border border-[var(--panel-border)] font-mono">${ins.values.rhs} / ${ins.values.mid} / ${ins.values.lhs}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            selectFormLocalFocusRow(filteredInspections[0].id);
+        }
+
+        function selectFormLocalFocusRow(logId) {
+            const ins = inspections.find(i => i.id === logId);
+            if (!ins) return;
+
+            document.getElementById("focus-log-id").innerText = ins.id;
+            const statusEl = document.getElementById("focus-status");
+            statusEl.innerText = ins.status === 'FAIL' ? 'OUT OF SPEC' : 'PASS CONTROL';
+            statusEl.className = ins.status === 'FAIL' ? 'text-failure-red font-black' : 'text-positive-green font-black';
+
+            document.getElementById("focus-pack").innerText = ins.pack;
+            const spec = specifications[ins.formCode];
+            document.getElementById("focus-readings").innerText = `${ins.values.rhs} / ${ins.values.mid} / ${ins.values.lhs} (${spec.unit})`;
+            
+            const devEl = document.getElementById("focus-deviation");
+            if (ins.status === 'FAIL') {
+                devEl.innerText = `Process deviation recorded below structural limits. Check sensor tooling.`;
+                devEl.className = "text-failure-red font-bold";
+                document.getElementById("focus-workflow").innerText = "Forced Recheck Workflow Engaged";
+            } else {
+                devEl.innerText = `Measurements within specification targets. Zero offset deviation.`;
+                devEl.className = "text-positive-green font-bold";
+                document.getElementById("focus-workflow").innerText = "Standard Logging Interval Met";
+            }
+
+            // Sync technician observations display
+            const commentEl = document.getElementById("focus-comment");
+            if (commentEl) {
+                commentEl.innerText = ins.values.comment || "No comments recorded.";
+            }
+
+            // Clean format timestamp
+            document.getElementById("focus-timestamp").innerText = ins.timestamp.replace('T', ' ');
+        }
+
+        function undoActiveFormFields() {
+            loadTechFormInstance(activeFormCode);
+            triggerToast("Active terminal edits reset to previous working draft.", "indigo");
+        }
+
+        function saveActiveFormDraft() {
+            triggerToast("Active entries saved locally as draft state.", "indigo");
+        }
+
+        function submitActiveForm() {
+            const spec = specifications[activeFormCode];
+            let isFailure = false;
+            let packCode = activeFormCode === 'F-001' ? 'LP-042' : (activeFormCode === 'F-003' ? 'DL-118' : 'CP-301');
+
+            for (let key in activeFormData) {
+                const val = activeFormData[key];
+                if (val < spec.low || val > spec.high) {
+                    isFailure = true;
+                }
+            }
+
+            const now = new Date();
+            const formatTimestamp = now.toISOString().split('.')[0]; 
+            const inspectId = `${activeFormCode.split('-')[1]}-20260716-${Math.floor(1000 + Math.random()*9000)}`;
+
+            const newRecord = {
+                id: inspectId,
+                timestamp: formatTimestamp,
+                formCode: activeFormCode,
+                pack: packCode,
+                values: JSON.parse(JSON.stringify(activeFormData)),
+                status: isFailure ? 'FAIL' : 'PASS'
+            };
+
+            rawInspectionsDataset.unshift(newRecord);
+
+            if (isFailure) {
+                const freshExId = `EX-${Math.floor(1000 + Math.random()*9000)}`;
+                rawExceptionsDataset.unshift({
+                    id: freshExId,
+                    timestamp: formatTimestamp,
+                    formCode: activeFormCode,
+                    pack: packCode,
+                    failedAttribute: 'Thickness Left Area (LHS)',
+                    loggedValue: `${activeFormData.lhs} ${spec.unit}`,
+                    workflowState: 'RECHECK 1'
+                });
+
+                const holdId = `HLD-${Math.floor(1000 + Math.random()*9000)}`;
+                rawQuarantineHoldsDataset.unshift({
+                    id: holdId,
+                    pack: packCode,
+                    process: `${activeFormCode} Outfeed Log`,
+                    reason: `Entered value of ${activeFormData.lhs}${spec.unit} violated active engineering limit bounds.`,
+                    timestamp: formatTimestamp
+                });
+
+                triggerToast(`CRITICAL: Non-conformance detected. Material isolated in holds register.`, "red");
+            } else {
+                const originalLength = rawExceptionsDataset.length;
+                rawExceptionsDataset = rawExceptionsDataset.filter(ex => ex.pack !== packCode);
+                rawQuarantineHoldsDataset = rawQuarantineHoldsDataset.filter(q => q.pack !== packCode);
+                
+                if (originalLength > rawExceptionsDataset.length) {
+                    triggerToast("Recheck successful: Product restored to control targets.", "green");
+                } else {
+                    triggerToast("Process inspection submitted cleanly to central SQL Database.", "green");
+                }
+            }
+
+            // Record transaction audit trail
+            auditTrail.unshift({
+                id: `AUD-${Math.floor(1000 + Math.random()*9000)}`,
+                timestamp: formatTimestamp.replace('T', ' '),
+                action: 'Inspection Submit Commit',
+                oldVal: 'NULL',
+                newVal: `Record: ${inspectId} (${newRecord.status})`,
+                operator: 'QC_Technician',
+                reason: 'Standard hourly check sequence confirmation'
+            });
+
+            applyDateFilters();
+        }
+
+        // ==========================================================================
+        // WORKSPACE SWITCHER CONTROLS: MANAGER
+        // ==========================================================================
+        function setMgrView(view) {
+            activeMgrView = view;
+            
+            const views = ['overview', 'exceptions', 'holds', 'tracking', 'trends', 'config', 'audit'];
+            views.forEach(v => {
+                const el = document.getElementById(`btn-mgr-${v}`);
+                if (el) el.className = "w-full text-left px-3 py-2 text-xs font-semibold rounded hover:bg-black/20 text-[var(--text-muted)]";
+            });
+
+            const activeBtn = document.getElementById(`btn-mgr-${view}`);
+            if (activeBtn) activeBtn.className = "w-full text-left px-3 py-2 text-xs font-bold uppercase rounded-lg tracking-wider bg-porta-red text-white";
+
+            document.getElementById("mgr-view-overview").classList.add("hidden");
+            document.getElementById("mgr-view-exceptions").classList.add("hidden");
+            document.getElementById("mgr-view-holds").classList.add("hidden");
+            document.getElementById("mgr-view-tracking").classList.add("hidden");
+            document.getElementById("mgr-view-trends").classList.add("hidden");
+            document.getElementById("mgr-view-config").classList.add("hidden");
+            document.getElementById("mgr-view-audit").classList.add("hidden");
+
+            document.getElementById(`mgr-view-${view}`).classList.remove("hidden");
+
+            if (view === 'overview') {
+                renderMgrOverview();
+            } else if (view === 'exceptions') {
+                renderMgrExceptionsQueue();
+            } else if (view === 'holds') {
+                renderMgrHoldsRegister();
+            } else if (view === 'tracking') {
+                triggerGenealogyScan();
+            } else if (view === 'trends') {
+                loadTrendData();
+            } else if (view === 'config') {
+                loadConfigSpecForm();
+            } else if (view === 'audit') {
+                renderAuditEventsLedger();
+            }
+        }
+
+        function renderMgrOverview() {
+            document.getElementById("mgr-kpi-completed").innerText = inspections.length + " / 42";
+            document.getElementById("mgr-kpi-overdue").innerText = "4";
+            document.getElementById("mgr-kpi-exceptions").innerText = exceptions.length;
+            document.getElementById("mgr-kpi-holds").innerText = quarantineHolds.length;
+
+            const tbody = document.getElementById("mgr-overview-exceptions-tbody");
+            tbody.innerHTML = "";
+
+            if (exceptions.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-3 text-center text-emerald-400 font-bold">✔️ Operational Baseline fully controlled. No open exceptions.</td></tr>`;
+            } else {
+                exceptions.forEach(ex => {
+                    const tr = document.createElement("tr");
+                    tr.className = "border-b border-[var(--panel-border)] hover:bg-black/10 cursor-pointer";
+                    tr.onclick = () => setMgrView('exceptions');
+                    
+                    tr.innerHTML = `
+                        <td class="p-2.5 text-[var(--text-muted)]">18m</td>
+                        <td class="p-2.5 text-[var(--text-main)] font-bold">${ex.formCode} Outfeed</td>
+                        <td class="p-2.5 text-blue-400 underline">${ex.pack}</td>
+                        <td class="p-2.5 text-slate-400">${ex.failedAttribute}</td>
+                        <td class="p-2.5 text-center text-failure-red font-bold">${ex.loggedValue}</td>
+                        <td class="p-2.5 text-center"><span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[8px] font-black uppercase border border-amber-500/20">${ex.workflowState}</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            const matrixTbody = document.getElementById("mgr-overview-matrix-tbody");
+            matrixTbody.innerHTML = "";
+
+            const targetProcesses = [
+                { name: 'Lathe Outfeed Production Line', form: 'F-001', check: '8/9 checks', next: 'Due Now', issues: exceptions.filter(e => e.formCode === 'F-001').length, holds: quarantineHolds.filter(h => h.pack.includes('LP')).length },
+                { name: 'Dryer Moisture Controls Section', form: 'F-003', check: '16/16 checks', next: 'Next shift', issues: exceptions.filter(e => e.formCode === 'F-003').length, holds: quarantineHolds.filter(h => h.pack.includes('DL')).length },
+                { name: 'Veneer Composer Assembly Systems', form: 'F-006', check: '22 Batch Logs', next: 'Per batch run', issues: exceptions.filter(e => e.formCode === 'F-006').length, holds: quarantineHolds.filter(h => h.pack.includes('CP')).length },
+                { name: 'Sanding Quality & Finished Matrix', form: 'F-013', check: '9/10 checks', next: 'Overdue 12m', issues: exceptions.filter(e => e.formCode === 'F-013').length, holds: quarantineHolds.filter(h => h.pack.includes('FP')).length }
+            ];
+
+            targetProcesses.forEach(proc => {
+                const tr = document.createElement("tr");
+                tr.className = "border-b border-[var(--panel-border)] hover:bg-black/10";
+                
+                let healthBadge = "";
+                if (proc.issues > 0) {
+                    healthBadge = `<span class="px-2.5 py-1 bg-rose-500/10 text-failure-red font-black text-[9px] rounded-md uppercase tracking-widest border border-rose-500/25">Action Required</span>`;
+                } else if (proc.next.includes("Overdue")) {
+                    healthBadge = `<span class="px-2.5 py-1 bg-amber-500/10 text-alert-amber font-black text-[9px] rounded-md uppercase tracking-widest border border-amber-500/25">Watch Limits</span>`;
+                } else {
+                    healthBadge = `<span class="px-2.5 py-1 bg-emerald-500/10 text-positive-green font-black text-[9px] rounded-md uppercase tracking-widest border border-emerald-500/25">Controlled</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="p-3 font-bold text-[var(--text-main)]">${proc.name}</td>
+                    <td class="p-3 text-center text-[var(--text-muted)] font-mono text-[11px]">${proc.check}</td>
+                    <td class="p-3 text-[var(--text-muted)] font-semibold">${proc.next}</td>
+                    <td class="p-3 text-center ${proc.issues > 0 ? 'text-failure-red font-black' : 'text-positive-green font-bold'} font-mono">${proc.issues} Open</td>
+                    <td class="p-3 text-center font-mono font-bold text-blue-400">${proc.holds} Packs</td>
+                    <td class="p-3 text-center">${healthBadge}</td>
+                `;
+                matrixTbody.appendChild(tr);
+            });
+        }
+
+        function renderMgrExceptionsQueue() {
+            const tbody = document.getElementById("mgr-exceptions-detail-tbody");
+            tbody.innerHTML = "";
+
+            if (exceptions.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="p-6 text-center text-[var(--text-muted)] italic font-bold">No quality exceptions logged inside the active timeframe.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            exceptions.forEach(ex => {
+                const tr = document.createElement("tr");
+                tr.className = "border-b border-[var(--panel-border)] hover:bg-black/10";
+                tr.onclick = () => selectExceptionForReview(ex.id);
+                
+                tr.innerHTML = `
+                    <td class="p-2.5 border border-[var(--panel-border)] text-blue-400 underline">${ex.id}</td>
+                    <td class="p-2.5 border border-[var(--panel-border)] text-slate-100 font-bold">${ex.formCode}</td>
+                    <td class="p-2.5 border border-[var(--panel-border)] text-[var(--text-muted)]">${ex.pack}</td>
+                    <td class="p-2.5 border border-[var(--panel-border)] text-slate-300">${ex.failedAttribute}</td>
+                    <td class="p-2.5 border border-[var(--panel-border)] text-center text-failure-red font-mono font-bold">${ex.loggedValue}</td>
+                    <td class="p-2.5 border border-[var(--panel-border)] text-center"><span class="px-1.5 py-0.5 bg-amber-500/10 text-amber-400 rounded text-[9px] font-black">${ex.workflowState}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            selectExceptionForReview(exceptions[0].id);
+        }
+
+        function selectExceptionForReview(exId) {
+            const ex = exceptions.find(e => e.id === exId);
+            if (!ex) return;
+
+            document.getElementById("ex-action-id").innerText = ex.id;
+            document.getElementById("ex-action-pack").innerText = ex.pack;
+            document.getElementById("ex-action-station").innerText = `${ex.formCode} Outfeed Station`;
+            document.getElementById("ex-action-value").innerText = ex.loggedValue;
+            document.getElementById("ex-action-notes").value = "";
+        }
+
+        function resolveExceptionAction(action) {
+            const exId = document.getElementById("ex-action-id").innerText;
+            const notes = document.getElementById("ex-action-notes").value;
+            
+            if (!notes.trim()) {
+                triggerToast("Action cancelled: Manager intervention comment notes are required.", "red");
+                return;
+            }
+
+            const targetEx = exceptions.find(e => e.id === exId);
+            if (!targetEx) return;
+
+            const now = new Date();
+            const formatTimestamp = now.toISOString().split('.')[0]; 
+
+            auditTrail.unshift({
+                id: `AUD-${Math.floor(1000 + Math.random()*9000)}`,
+                timestamp: formatTimestamp.replace('T', ' '),
+                action: 'Manager Exception Action',
+                oldVal: targetEx.workflowState,
+                newVal: `Closed / Resolved (${action})`,
+                operator: 'M_Patterson_QC_Manager',
+                reason: notes
+            });
+
+            if (action === 'RELEASE') {
+                rawExceptionsDataset = rawExceptionsDataset.filter(e => e.id !== exId);
+                rawQuarantineHoldsDataset = rawQuarantineHoldsDataset.filter(q => q.pack !== targetEx.pack);
+                triggerToast(`Authorized Clear: Pack ${targetEx.pack} released cleanly to production lines.`, "green");
+            } else {
+                const matchInRaw = rawExceptionsDataset.find(e => e.id === exId);
+                if (matchInRaw) matchInRaw.workflowState = 'HOLD';
+                
+                const holdExists = rawQuarantineHoldsDataset.find(q => q.pack === targetEx.pack);
+                if (!holdExists) {
+                    rawQuarantineHoldsDataset.unshift({
+                        id: `HLD-${Math.floor(1000 + Math.random()*9000)}`,
+                        pack: targetEx.pack,
+                        process: `${targetEx.formCode} Station Checks`,
+                        reason: `Continuous failure logged. Manager escalated to quarantine HOLD.`,
+                        timestamp: formatTimestamp
+                    });
+                }
+                triggerToast(`Escalation confirmed: Pack ${targetEx.pack} isolated in Quarantine HOLD register.`, "indigo");
+            }
+
+            applyDateFilters();
+        }
+
+        function renderMgrHoldsRegister() {
+            const container = document.getElementById("mgr-holds-list-container");
+            container.innerHTML = "";
+
+            if (quarantineHolds.length === 0) {
+                container.innerHTML = `
+                    <div class="p-6 bg-slate-900 border border-slate-800 rounded-xl text-slate-500 text-center text-xs font-bold uppercase">
+                        ✔️ Operational Quarantine Register is fully empty. Zero material packs on hold.
+                    </div>
+                `;
+                document.getElementById("mgr-hold-disposition-panel").classList.add("hidden");
+                return;
+            }
+
+            document.getElementById("mgr-hold-disposition-panel").classList.remove("hidden");
+
+            quarantineHolds.forEach(q => {
+                const div = document.createElement("div");
+                div.className = "bg-black/20 border rounded-xl p-4 shadow-sm hover:shadow-md cursor-pointer transition flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-[var(--panel-border)]";
+                div.onclick = () => selectHoldForDisposition(q.id);
+
+                const cleanTime = q.timestamp.replace('T', ' ').substring(11, 16);
+                div.innerHTML = `
+                    <div class="space-y-1.5">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 bg-porta-red text-white text-[9px] font-black rounded-md uppercase">QUARANTINED</span>
+                            <strong class="font-mono text-xs font-bold text-slate-200">${q.pack}</strong>
+                            <span class="text-[10px] text-slate-500 font-mono font-bold">${q.id}</span>
+                        </div>
+                        <div class="text-[11px] font-bold text-slate-400">Origin Process: <span class="text-white">${q.process}</span></div>
+                        <p class="text-xs text-failure-red font-bold mt-1">${q.reason}</p>
+                    </div>
+                    <div class="text-right text-[10px] text-slate-500 font-mono font-bold">
+                        Logged time<br><span class="text-slate-300 font-semibold">${cleanTime}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            selectHoldForDisposition(quarantineHolds[0].id);
+        }
+
+        function selectHoldForDisposition(holdId) {
+            const q = quarantineHolds.find(h => h.id === holdId);
+            if (!q) return;
+
+            document.getElementById("hold-disp-id").innerText = q.id;
+            document.getElementById("hold-disp-pack").innerText = q.pack;
+            document.getElementById("hold-disp-process").innerText = q.process;
+            document.getElementById("hold-disp-reason").innerText = q.reason;
+            document.getElementById("hold-disp-comment").value = "";
+        }
+
+        function submitHoldDisposition(action) {
+            const holdId = document.getElementById("hold-disp-id").innerText;
+            const comment = document.getElementById("hold-disp-comment").value;
+
+            if (!comment.trim()) {
+                triggerToast("Action cancelled: Disposition clearance authorization comments are required.", "red");
+                return;
+            }
+
+            const targetHold = quarantineHolds.find(h => h.id === holdId);
+            if (!targetHold) return;
+
+            const now = new Date();
+            const formatTimestamp = now.toISOString().split('.')[0]; 
+            
+            auditTrail.unshift({
+                id: `AUD-${Math.floor(1000 + Math.random()*9000)}`,
+                timestamp: formatTimestamp.replace('T', ' '),
+                action: 'Manager HOLD Disposition',
+                oldVal: 'QUARANTINE_HOLD',
+                newVal: `Closed / Disposition Approved (${action})`,
+                operator: 'M_Patterson_QC_Manager',
+                reason: comment
+            });
+
+            rawQuarantineHoldsDataset = rawQuarantineHoldsDataset.filter(h => h.id !== holdId);
+            rawExceptionsDataset = rawExceptionsDataset.filter(ex => ex.pack !== targetHold.pack);
+
+            triggerToast(`Material Disposition Logged: Pack ${targetHold.pack} successfully updated with disposition code [${action}].`, "green");
+            applyDateFilters();
+        }
+
+        // ==========================================================================
+        // WORKSPACE SWITCHER CONTROLS: SPEC EDITOR
+        // ==========================================================================
+        function loadConfigSpecForm() {
+            const formCode = document.getElementById("config-form-select").value;
+            const spec = specifications[formCode];
+
+            document.getElementById("config-low-limit").value = spec.low;
+            document.getElementById("config-target-limit").value = spec.target;
+            document.getElementById("config-high-limit").value = spec.high;
+        }
+
+        function commitSpecChanges() {
+            const formCode = document.getElementById("config-form-select").value;
+            const low = parseFloat(document.getElementById("config-low-limit").value);
+            const target = parseFloat(document.getElementById("config-target-limit").value);
+            const high = parseFloat(document.getElementById("config-high-limit").value);
+
+            if (isNaN(low) || isNaN(target) || isNaN(high) || low >= target || target >= high) {
+                triggerToast("Action cancelled: Invalid limit parameters defined. Enforce low < target < high.", "red");
+                return;
+            }
+
+            const now = new Date();
+            const formatTimestamp = now.toISOString().split('.')[0]; 
+            const prevSpec = JSON.parse(JSON.stringify(specifications[formCode]));
+
+            specifications[formCode].low = low;
+            specifications[formCode].target = target;
+            specifications[formCode].high = high;
+
+            auditTrail.unshift({
+                id: `AUD-${Math.floor(1000 + Math.random()*9000)}`,
+                timestamp: formatTimestamp.replace('T', ' '),
+                action: `Specification limits modified: ${formCode}`,
+                oldVal: `Low: ${prevSpec.low} | Target: ${prevSpec.target} | High: ${prevSpec.high}`,
+                newVal: `Low: ${low} | Target: ${target} | High: ${high}`,
+                operator: 'M_Patterson_QC_Manager',
+                reason: 'Refining tolerances based on shift variance trends.'
+            });
+
+            triggerToast(`Master Calibration set successfully. High: ${high} | Low: ${low}.`, "green");
+            setMgrView('overview');
+        }
+
+        // ==========================================================================
+        // MGR VIEW: CROSS-STAGE TRACKING & PRODUCT GENEALOGY (Interactive timeline)
+        // ==========================================================================
+        const stageChainData = [
+            { key: 'lathe', name: 'Lathe Outfeed (F-001)', pack: 'LP-042', time: '16/07 08:14', metric: 'Thickness LHS', value: '2.94 mm', spec: '3.01 - 3.33 mm', status: 'FAIL', deviation: '-0.07 mm below structural floor' },
+            { key: 'dryer_in', name: 'Dryer Infeed (F-002)', pack: 'DL-118', time: '16/07 09:08', metric: 'Nominal Veneer', value: '3.0 mm Dry', spec: 'Standard Dry 3.0mm', status: 'PASS', deviation: 'Within nominal bounds' },
+            { key: 'dryer_out', name: 'Dryer Outfeed (F-003)', pack: 'DL-118', time: '16/07 11:32', metric: 'Peak Moisture Content', value: '22.1 %', spec: '8.0% - 18.0%', status: 'FAIL', deviation: '+4.1% over structural moisture threshold' },
+            { key: 'composer', name: 'Composer Outfeed (F-006)', pack: 'CP-301', time: '16/07 13:46', metric: 'Joint Thickness', value: '3.18 mm', spec: '3.01 - 3.29 mm', status: 'PASS', deviation: 'Passed thickness boundary parameters' },
+            { key: 'sanding', name: 'Sanding Line (F-013)', pack: 'FP-441', time: '16/07 15:22', metric: 'Finished Panel Thk', value: '17.20 mm', spec: '17.50 - 18.20 mm', status: 'FAIL', deviation: '-0.30 mm below target finished minimum' }
+        ];
+
+        function triggerGenealogyScan() {
+            const container = document.getElementById("genealogy-timeline-container");
+            container.innerHTML = "";
+
+            stageChainData.forEach(stage => {
+                const div = document.createElement("div");
+                div.className = "bg-black/20 border-2 rounded-xl p-3.5 shadow-sm hover:shadow-md cursor-pointer transition flex flex-col justify-between min-h-[140px] border-[var(--panel-border)]";
+                div.onclick = () => selectGenealogyStageFocus(stage.key);
+
+                let badgeColor = stage.status === 'PASS' ? 'bg-positive-green' : 'bg-failure-red';
+                div.innerHTML = `
+                    <div>
+                        <div class="text-[9px] text-[var(--text-muted)] font-bold font-mono">${stage.time}</div>
+                        <h4 class="text-xs font-black text-slate-200 uppercase mt-1 truncate">${stage.name}</h4>
+                        <div class="text-[10px] text-blue-400 underline font-semibold mt-1 font-mono">${stage.pack}</div>
+                    </div>
+                    <div class="mt-4 pt-2 border-t border-[var(--panel-border)] flex justify-between items-center text-[10px]">
+                        <span class="text-slate-500 font-bold">${stage.metric}</span>
+                        <span class="px-1.5 py-0.5 rounded text-[8px] font-black text-white ${badgeColor}">${stage.status}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            selectGenealogyStageFocus('lathe');
+        }
+
+        function selectGenealogyStageFocus(stageKey) {
+            const data = stageChainData.find(s => s.key === stageKey);
+            if (!data) return;
+
+            const panel = document.getElementById("genealogy-focus-detail-card");
+            let badgeClass = data.status === 'PASS' ? 'bg-positive-green text-white' : 'bg-failure-red text-white';
+
+            panel.innerHTML = `
+                <div class="flex justify-between items-center border-b border-[var(--panel-border)] pb-2 mb-3">
+                    <span class="text-[10px] font-black text-slate-200 uppercase tracking-widest">
+                        🔍 STAGE EVALUATION AUDIT FOCUS: ${data.name}
+                    </span>
+                    <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase ${badgeClass}">${data.status}</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-semibold text-slate-400">
+                    <div class="space-y-1.5">
+                        <div>Product Category Link ID: <strong class="text-white font-mono">PT-20260716-0042</strong></div>
+                        <div>Production stage Pack ID: <strong class="text-blue-400 underline font-mono">${data.pack}</strong></div>
+                        <div>Recorded Parameter: <strong class="text-white">${data.metric}</strong></div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <div>Measured Outcome: <strong class="text-white font-mono">${data.value}</strong></div>
+                        <div>Specification Target: <strong class="text-white font-mono">${data.spec}</strong></div>
+                        <div>Calculated Offset Deviation: <strong class="text-failure-red">${data.deviation}</strong></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==========================================================================
+        // MGR VIEW: TAMPER-EVIDENT AUDIT EVENTS
+        // ==========================================================================
+        function renderAuditEventsLedger() {
+            const tbody = document.getElementById("mgr-audit-tbody");
+            tbody.innerHTML = "";
+
+            auditTrail.forEach(aud => {
+                const tr = document.createElement("tr");
+                tr.className = "border-b border-[var(--panel-border)] hover:bg-black/10";
+                tr.innerHTML = `
+                    <td class="p-3 border-r border-[var(--panel-border)] font-bold text-slate-500">${aud.id}</td>
+                    <td class="p-3 border-r border-[var(--panel-border)] text-slate-400 font-mono">${aud.timestamp}</td>
+                    <td class="p-3 border-r border-[var(--panel-border)] text-slate-100 font-black uppercase">${aud.action}</td>
+                    <td class="p-3 border-r border-[var(--panel-border)] text-slate-400 font-mono font-semibold">${aud.oldVal}</td>
+                    <td class="p-3 border-r border-[var(--panel-border)] text-porta-red font-mono font-black">${aud.newVal}</td>
+                    <td class="p-3 border-r border-[var(--slate-850)] text-slate-300">${aud.operator}</td>
+                    <td class="p-3 font-semibold text-slate-400">${aud.reason}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ==========================================================================
+        // DYNAMIC PLC TAG TELEMETRY FEED SIMULATOR
+        // ==========================================================================
+        function toggleSimulatedTelemetry() {
+            const checked = document.getElementById("sim-telemetry-toggle").checked;
+            if (checked) {
+                triggerToast("OPC-UA Tag database sync active. Live stream initialized.", "green");
+                liveTelemetryTimer = setInterval(() => {
+                    latheTrendPoints.shift();
+                    const nextVal = Math.floor(70 + (Math.random() * 110));
+                    latheTrendPoints.push(nextVal);
+
+                    if (activeRole === 'manager' && activeMgrView === 'trends') {
+                        loadTrendData();
+                    }
+
+                    if (Math.random() < 0.1 && exceptions.length < 5) {
+                        const packId = `LP-0${Math.floor(40 + Math.random() * 20)}`;
+                        const freshExId = `EX-${Math.floor(1000 + Math.random() * 9000)}`;
+                        const now = new Date();
+                        const formatTimestamp = now.toISOString().split('.')[0]; 
+
+                        rawExceptionsDataset.unshift({
+                            id: freshExId,
+                            timestamp: formatTimestamp,
+                            formCode: 'F-001',
+                            pack: packId,
+                            failedAttribute: 'Thickness Left (LHS)',
+                            loggedValue: '2.94 mm',
+                            workflowState: 'RECHECK 1'
+                        });
+
+                        rawQuarantineHoldsDataset.unshift({
+                            id: `HLD-${Math.floor(100 + Math.random() * 905)}`,
+                            pack: packId,
+                            process: 'Lathe Outfeed Checks',
+                            reason: 'Continuous thickness limits threshold violated.',
+                            timestamp: formatTimestamp
+                        });
+
+                        triggerToast(`CRITICAL NOTIFICATION: Live threshold breach on ${packId}.`, "red");
+                        applyDateFilters();
+                    }
+
+                }, 2000);
+            } else {
+                clearInterval(liveTelemetryTimer);
+                triggerToast("OPC-UA live machine telemetry streams paused.", "indigo");
+            }
+        }
+
+        // ==========================================================================
+        // COMMON TOAST UTILITIES
+        // ==========================================================================
+        function triggerToast(text, color = "indigo") {
+            const holder = document.getElementById("toast-holder");
+            const toast = document.createElement("div");
+            
+            let colorClasses = "bg-slate-950 text-white border-l-4 border-indigo-500 border-slate-800";
+            if (color === "green") colorClasses = "bg-slate-950 text-white border-l-4 border-emerald-500 border-slate-800";
+            if (color === "red") colorClasses = "bg-slate-950 text-white border-l-4 border-rose-500 border-slate-800";
+            if (color === "yellow") colorClasses = "bg-slate-950 text-white border-l-4 border-amber-400 border-slate-800";
+
+            toast.className = `p-3.5 rounded-xl shadow-2xl text-xs font-bold transition-all duration-300 transform translate-y-2 opacity-0 flex items-center justify-between gap-4 ${colorClasses}`;
+            toast.innerHTML = `
+                <span>${text}</span>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white font-black text-sm">&times;</button>
+            `;
+
+            holder.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove("translate-y-2", "opacity-0");
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add("translate-y-2", "opacity-0");
+                setTimeout(() => toast.remove(), 300);
+            }, 4500);
+        }
+    </script>
+</body>
+</html>

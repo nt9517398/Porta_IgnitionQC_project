@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Porta Lathe Outfeed Process Control Terminal</title>
+    <!-- Tailwind CSS Engine -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'porta-red': '#D7194B',
+                        'dark-charcoal': '#343A40',
+                        'light-grey': '#F3F3F3',
+                        'mid-grey': '#A6A6A6',
+                        'warning-yellow': '#FFF200',
+                        'positive-green': '#00E62E',
+                        'review-purple': '#9999FF',
+                        'failure-red': '#E53935',
+                        'alert-amber': '#FFBF00',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #E2E8F0;
+        }
+
+        /* Pulsing Shadow Glow Keyframes for Failure */
+        @keyframes qcPulseFailKeyframe {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(229, 57, 53, 0);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 0 6px rgba(229, 57, 53, 0.4);
+                transform: scale(1.015);
+            }
+        }
+
+        /* Pulsing Shadow Glow Keyframes for Warnings */
+        @keyframes qcPulseWarningKeyframe {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(255, 191, 0, 0);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 0 6px rgba(255, 191, 0, 0.4);
+                transform: scale(1.015);
+            }
+        }
+
+        /* Temporary Animation Utility Classes */
+        .animate-pulse-fail {
+            animation: qcPulseFailKeyframe 0.75s ease-in-out 3;
+        }
+
+        .animate-pulse-warning {
+            animation: qcPulseWarningKeyframe 0.75s ease-in-out 3;
+        }
+
+        /* Custom Scrollbar for Industrial Screens */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F3F3F3;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #A6A6A6;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #7F8C8D;
+        }
+    </style>
+</head>
+<body class="p-3 md:p-6 text-dark-charcoal selection:bg-porta-red selection:text-white">
+
+    <div class="max-w-7xl mx-auto bg-white shadow-2xl rounded-lg overflow-hidden border border-mid-grey">
+        
+        <!-- ==========================================================================
+             1. CORE BRAND & TELEMETRY CONTEXT HEADER
+             ========================================================================== -->
+        <header class="bg-white border-b-2 border-mid-grey px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-porta-red text-3xl font-black tracking-tighter lowercase select-none">porta</span>
+                <span class="w-[2px] h-6 bg-mid-grey hidden md:block"></span>
+                <h1 class="text-dark-charcoal font-black text-sm md:text-base tracking-wider uppercase">
+                    Lathe Outfeed Process Control
+                </h1>
+            </div>
+            
+            <!-- Context values -->
+            <div class="flex flex-wrap items-center justify-center gap-4 text-xs">
+                <div class="bg-light-grey px-3 py-1.5 rounded border border-mid-grey">
+                    Product: <strong class="text-black font-semibold">3.0 mm LS Veneer</strong>
+                </div>
+                <div class="bg-light-grey px-3 py-1.5 rounded border border-mid-grey">
+                    Pack ID: <strong id="active-pack-id" class="text-black font-semibold">P260716-042</strong>
+                </div>
+                <div class="bg-light-grey px-3 py-1.5 rounded border border-mid-grey">
+                    User: <strong class="text-black font-semibold">N. Trieu (Automation)</strong>
+                </div>
+                <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded border-2 border-positive-green text-positive-green font-bold text-[10px] uppercase select-none tracking-wider">
+                    <span class="w-2 h-2 rounded-full bg-positive-green animate-ping"></span>
+                    Online
+                </div>
+            </div>
+        </header>
+
+        <!-- ==========================================================================
+             2. DIAGNOSTIC SCHEDULE BANNER
+             ========================================================================== -->
+        <div class="bg-dark-charcoal text-white text-[11px] md:text-xs px-4 py-2.5 flex flex-col sm:flex-row justify-between items-center gap-2 font-medium">
+            <div class="flex items-center gap-2">
+                <span class="inline-block px-1.5 py-0.5 bg-porta-red text-white text-[9px] font-black rounded tracking-wide">DUE NOW</span>
+                <span>Hourly scheduled check interval active</span>
+            </div>
+            <div class="flex items-center gap-4 text-[#BDC3C7]">
+                <span>Caliper Tool: <strong class="text-white">TG-04 (Cal. OK)</strong></span>
+                <span class="hidden sm:inline">|</span>
+                <span>Ref Specification: <strong class="text-white">Form 05-20-39 Rev 27/02/2026</strong></span>
+            </div>
+        </div>
+
+        <!-- ==========================================================================
+             3. PLC SIMULATOR CONTROLS (Prototyping Helper Bar)
+             ========================================================================== -->
+        <div class="bg-slate-800 text-white px-4 py-3 border-b border-slate-700 flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-2 text-xs">
+                <span class="bg-slate-700 text-slate-300 px-2 py-1 rounded font-bold uppercase text-[9px]">Simulation Control Panel</span>
+                <span class="text-slate-400">Instantly test standard calibration, warning bands, or failure workflow scenarios:</span>
+            </div>
+            <div class="flex flex-wrap gap-2 text-xs">
+                <button onclick="loadScenario('passing')" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded font-semibold transition active:scale-95">
+                    Scenario A: Perfectly Passing
+                </button>
+                <button onclick="loadScenario('failure')" class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1 rounded font-semibold transition active:scale-95">
+                    Scenario B: LHS Caliper Breach
+                </button>
+                <button onclick="loadScenario('warning')" class="bg-amber-500 hover:bg-amber-400 text-dark-charcoal px-3 py-1 rounded font-bold transition active:scale-95">
+                    Scenario C: Clipping Warning
+                </button>
+                <div class="flex items-center gap-2 ml-2 border-l border-slate-600 pl-4">
+                    <input type="checkbox" id="live-feeder" onchange="toggleLiveFeeder()" class="rounded text-porta-red focus:ring-porta-red h-4 w-4 bg-slate-900 border-slate-700">
+                    <label for="live-feeder" class="font-bold text-[11px] text-slate-300 cursor-pointer uppercase tracking-wider select-none">Live PLC Feed</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================================================
+             4. CORE DUAL PANEL SPLIT ENGINE
+             ========================================================================== -->
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 bg-light-grey">
+            
+            <!-- 4.1 LEFT COLUMN: Inspection Input Form (7/12) -->
+            <section class="lg:col-span-7 flex flex-col gap-4">
+                
+                <div class="bg-white border border-mid-grey rounded-lg p-4 shadow-sm">
+                    <div class="flex justify-between items-center border-b border-light-grey pb-3 mb-4">
+                        <h2 class="font-bold text-sm tracking-wide text-dark-charcoal uppercase flex items-center gap-2">
+                            <span class="w-2 h-4 bg-porta-red rounded"></span>
+                            Current Run Measurements
+                        </h2>
+                        <span class="text-xs text-gray-500 font-medium">Station: Lathe Outfeed 01</span>
+                    </div>
+
+                    <!-- Metadata Overview Row -->
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        <div class="bg-light-grey p-2 rounded border border-mid-grey text-center">
+                            <span class="block text-[9px] text-gray-500 uppercase font-bold tracking-wider">Moisture Grade</span>
+                            <span class="text-sm font-black text-dark-charcoal">LS</span>
+                        </div>
+                        <div class="bg-light-grey p-2 rounded border border-mid-grey text-center">
+                            <span class="block text-[9px] text-gray-500 uppercase font-bold tracking-wider">Nominal Target</span>
+                            <span class="text-sm font-black text-dark-charcoal">3.0 mm</span>
+                        </div>
+                        <div class="bg-light-grey p-2 rounded border border-mid-grey text-center">
+                            <span class="block text-[9px] text-gray-500 uppercase font-bold tracking-wider">Class Grade</span>
+                            <span class="text-sm font-black text-dark-charcoal">Structural</span>
+                        </div>
+                    </div>
+
+                    <!-- ARRAY SECTION A: THICKNESS CONTROLS -->
+                    <div class="mb-5">
+                        <div class="bg-dark-charcoal text-white text-[10px] font-bold px-3 py-1.5 rounded-t flex justify-between items-center uppercase tracking-wider">
+                            <span>Veneer Caliper Thickness Array</span>
+                            <span class="font-normal text-[9px] text-gray-300">Target Spec: 3.01mm - 3.33mm | Preferred Center: 3.22mm</span>
+                        </div>
+                        
+                        <div class="border border-t-0 border-mid-grey rounded-b p-3 bg-white space-y-3">
+                            <!-- RHS -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <label class="w-16 text-xs font-black uppercase text-gray-600">Right (RHS)</label>
+                                <div class="flex items-center gap-1.5 flex-1 max-w-sm">
+                                    <button onclick="adjustValue('thickness', 'rhs', -0.01)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">-</button>
+                                    <input type="number" step="0.01" id="thk-rhs" value="3.18" oninput="manualInputChange('thickness', 'rhs', this.value)" class="w-full h-8 text-center font-black border border-mid-grey rounded text-sm focus:ring-2 focus:ring-porta-red focus:outline-none transition-all duration-300">
+                                    <button onclick="adjustValue('thickness', 'rhs', 0.01)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">+</button>
+                                </div>
+                                <div id="thk-rhs-badge" class="w-28 py-1 text-center font-bold text-[10px] text-white rounded uppercase select-none tracking-wider transition-colors duration-300">
+                                    -
+                                </div>
+                            </div>
+                            
+                            <!-- MID -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <label class="w-16 text-xs font-black uppercase text-gray-600">Middle (MID)</label>
+                                <div class="flex items-center gap-1.5 flex-1 max-w-sm">
+                                    <button onclick="adjustValue('thickness', 'mid', -0.01)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">-</button>
+                                    <input type="number" step="0.01" id="thk-mid" value="3.22" oninput="manualInputChange('thickness', 'mid', this.value)" class="w-full h-8 text-center font-black border border-mid-grey rounded text-sm focus:ring-2 focus:ring-porta-red focus:outline-none transition-all duration-300">
+                                    <button onclick="adjustValue('thickness', 'mid', 0.01)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">+</button>
+                                </div>
+                                <div id="thk-mid-badge" class="w-28 py-1 text-center font-bold text-[10px] text-white rounded uppercase select-none tracking-wider transition-colors duration-300">
+                                    -
+                                </div>
+                            </div>
+                            
+                            <!-- LHS -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="w-16 flex flex-col">
+                                    <span class="text-xs font-black uppercase text-gray-600">Left (LHS)</span>
+                                </div>
+                                <div class="flex items-center gap-1.5 flex-1 max-w-sm">
+                                    <button onclick="adjustValue('thickness', 'lhs', -0.01)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">-</button>
+                                    <input type="number" step="0.01" id="thk-lhs" value="2.94" oninput="manualInputChange('thickness', 'lhs', this.value)" class="w-full h-8 text-center font-black border border-mid-grey rounded text-sm focus:ring-2 focus:ring-porta-red focus:outline-none transition-all duration-300">
+                                    <button onclick="adjustValue('thickness', 'lhs', 0.01)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">+</button>
+                                </div>
+                                <div id="thk-lhs-badge" class="w-28 py-1 text-center font-bold text-[10px] text-white rounded uppercase select-none tracking-wider transition-colors duration-300">
+                                    -
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ARRAY SECTION B: CLIPPING WIDTH CONTROLS -->
+                    <div class="mb-5">
+                        <div class="bg-dark-charcoal text-white text-[10px] font-bold px-3 py-1.5 rounded-t flex justify-between items-center uppercase tracking-wider">
+                            <span>Veneer Width Verification Matrix</span>
+                            <span class="font-normal text-[9px] text-gray-300">Target Spec: 1355mm - 1375mm | Preferred Center: 1365mm</span>
+                        </div>
+                        
+                        <div class="border border-t-0 border-mid-grey rounded-b p-3 bg-white space-y-3">
+                            <!-- RHS -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <label class="w-16 text-xs font-black uppercase text-gray-600">Right (RHS)</label>
+                                <div class="flex items-center gap-1.5 flex-1 max-w-sm">
+                                    <button onclick="adjustValue('clippingWidth', 'rhs', -1)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">-</button>
+                                    <input type="number" step="1" id="width-rhs" value="1361" oninput="manualInputChange('clippingWidth', 'rhs', this.value)" class="w-full h-8 text-center font-black border border-mid-grey rounded text-sm focus:ring-2 focus:ring-porta-red focus:outline-none transition-all duration-300">
+                                    <button onclick="adjustValue('clippingWidth', 'rhs', 1)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">+</button>
+                                </div>
+                                <div id="width-rhs-badge" class="w-28 py-1 text-center font-bold text-[10px] text-white rounded uppercase select-none tracking-wider transition-colors duration-300">
+                                    -
+                                </div>
+                            </div>
+                            
+                            <!-- MID -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <label class="w-16 text-xs font-black uppercase text-gray-600">Middle (MID)</label>
+                                <div class="flex items-center gap-1.5 flex-1 max-w-sm">
+                                    <button onclick="adjustValue('clippingWidth', 'mid', -1)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">-</button>
+                                    <input type="number" step="1" id="width-mid" value="1363" oninput="manualInputChange('clippingWidth', 'mid', this.value)" class="w-full h-8 text-center font-black border border-mid-grey rounded text-sm focus:ring-2 focus:ring-porta-red focus:outline-none transition-all duration-300">
+                                    <button onclick="adjustValue('clippingWidth', 'mid', 1)" class="w-8 h-8 bg-light-grey border border-mid-grey rounded text-lg font-black select-none hover:bg-gray-200 active:scale-95">+</button>
+                                </div>
+                                <div id="width-mid-badge" class="w-28 py-1 text-center font-bold text-[10px] text-white rounded uppercase select-none tracking-wider transition-colors duration-300">
+                                    -
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SYSTEM ENFORCED INSTRUCTION PANEL -->
+                    <div id="dynamic-warning-box" class="border-2 border-warning-yellow rounded-lg p-4 bg-white shadow-inner flex gap-3 transition-colors duration-500">
+                        <div class="text-xl md:text-2xl mt-0.5 select-none" id="warning-icon">⚠</div>
+                        <div>
+                            <h3 class="text-xs font-black text-dark-charcoal uppercase tracking-wider mb-1" id="warning-box-title">Action Required</h3>
+                            <p class="text-xs text-slate-600 m-0 leading-relaxed font-semibold" id="warning-box-desc">
+                                Loading process calibration diagnostics...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4.2 RIGHT COLUMN: Real-Time Execution Log & Overlay Summary Detail (5/12) -->
+            <section class="lg:col-span-5 flex flex-col gap-4">
+                
+                <div class="bg-white border border-mid-grey rounded-lg p-4 shadow-sm flex flex-col justify-between min-h-[460px]">
+                    <div>
+                        <div class="flex justify-between items-center border-b border-light-grey pb-3 mb-3">
+                            <h2 class="font-bold text-sm tracking-wide text-dark-charcoal uppercase flex items-center gap-2">
+                                <span class="w-2 h-4 bg-dark-charcoal rounded"></span>
+                                Station Local Shift History
+                            </h2>
+                            <div class="flex gap-1">
+                                <button class="px-2 py-1 bg-dark-charcoal text-white text-[9px] font-black rounded uppercase">Shift</button>
+                                <button class="px-2 py-1 bg-light-grey text-gray-500 text-[9px] font-bold rounded uppercase hover:bg-gray-200">Alerts</button>
+                            </div>
+                        </div>
+
+                        <!-- Main Table Grid -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border border-mid-grey rounded overflow-hidden">
+                                <thead>
+                                    <tr class="bg-dark-charcoal text-white uppercase text-[9px] tracking-wide select-none">
+                                        <th class="p-2 border border-mid-grey">Status</th>
+                                        <th class="p-2 border border-mid-grey">Time</th>
+                                        <th class="p-2 border border-mid-grey">Pack</th>
+                                        <th class="p-2 border border-mid-grey">THK R/M/L</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="font-mono text-[11px] font-semibold">
+                                    <tr onclick="selectHistoryRow('LAT-20260716-0042', 'FAIL', 'P-042', '3.18 / 3.22 / 2.94', 'LHS Caliper 2.94mm', '0.07 mm below limits', 'Accelerated Recheck 1 Required', '16/07/2026 10:08:43')" class="bg-rose-50 hover:bg-rose-100 cursor-pointer border-b border-mid-grey transition-colors">
+                                        <td class="p-2 text-failure-red font-black border border-mid-grey">OUT OF SPEC</td>
+                                        <td class="p-2 text-gray-600 border border-mid-grey">10:08</td>
+                                        <td class="p-2 text-blue-800 underline border border-mid-grey">P-042</td>
+                                        <td class="p-2 text-failure-red border border-mid-grey">3.18/3.22/2.94</td>
+                                    </tr>
+                                    <tr onclick="selectHistoryRow('LAT-20260716-0038', 'PASS', 'P-038', '3.19 / 3.23 / 3.20', 'None', 'None', 'Standard Interval Met', '16/07/2026 09:05:12')" class="hover:bg-gray-100 cursor-pointer border-b border-mid-grey transition-colors">
+                                        <td class="p-2 text-positive-green font-black border border-mid-grey">PASS CONTROL</td>
+                                        <td class="p-2 text-gray-600 border border-mid-grey">09:05</td>
+                                        <td class="p-2 text-blue-800 underline border border-mid-grey">P-038</td>
+                                        <td class="p-2 text-gray-700 border border-mid-grey">3.19/3.23/3.20</td>
+                                    </tr>
+                                    <tr onclick="selectHistoryRow('LAT-20260716-0029', 'PASS', 'P-029', '3.21 / 3.24 / 3.18', 'None', 'None', 'Standard Interval Met', '16/07/2026 08:03:55')" class="hover:bg-gray-100 cursor-pointer border-b border-mid-grey transition-colors">
+                                        <td class="p-2 text-positive-green font-black border border-mid-grey">PASS CONTROL</td>
+                                        <td class="p-2 text-gray-600 border border-mid-grey">08:03</td>
+                                        <td class="p-2 text-blue-800 underline border border-mid-grey">P-029</td>
+                                        <td class="p-2 text-gray-700 border border-mid-grey">3.21/3.24/3.18</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- EXPLICIT OVERLAY STYLING PREVENTING LAYER COLLISIONS -->
+                        <div class="mt-4 relative z-50">
+                            <div class="bg-white border-2 border-mid-grey rounded-lg p-3.5 shadow-lg select-none">
+                                <div class="flex justify-between items-center border-b border-light-grey pb-2 mb-2">
+                                    <span class="text-[10px] font-black uppercase text-dark-charcoal tracking-widest flex items-center gap-1.5">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                                        Log Focus Details
+                                    </span>
+                                    <span id="overlay-log-id" class="text-[10px] font-mono text-gray-500 font-bold">LAT-20260716-0042</span>
+                                </div>
+                                <div class="space-y-1.5 text-xs text-slate-700">
+                                    <div class="flex justify-between">
+                                        <span class="font-bold">Evaluation Status:</span>
+                                        <span id="overlay-status" class="text-failure-red font-black uppercase">OUT OF SPEC</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="font-bold">Active Package ID:</span>
+                                        <span id="overlay-pack" class="font-mono font-bold text-gray-900">P-042</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="font-bold">Caliper Readings:</span>
+                                        <span id="overlay-reads" class="font-mono text-gray-900 font-semibold">3.18 / 3.22 / 2.94</span>
+                                    </div>
+                                    <div class="flex justify-between border-t border-dashed border-gray-200 pt-1.5 mt-1.5">
+                                        <span class="font-bold">Breach Characteristic:</span>
+                                        <span id="overlay-fail-driver" class="text-failure-red font-bold">LHS Caliper 2.94mm</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="font-bold">Variance Offset:</span>
+                                        <span id="overlay-variance" class="text-slate-600 font-medium">0.07 mm below limits</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="font-bold">Mandated Workflow:</span>
+                                        <span id="overlay-workflow" class="text-alert-amber font-bold">Accelerated Recheck 1 Required</span>
+                                    </div>
+                                    <div class="text-[9px] text-gray-400 text-right font-bold border-t border-light-grey pt-1 mt-1">
+                                        System Commit Stamp: <span id="overlay-timestamp" class="font-mono">16/07/2026 10:08:43</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Shift Progress Trackers -->
+                    <div class="border-t border-light-grey pt-4 mt-4 space-y-3">
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] font-black text-gray-600 uppercase">
+                                <span>Shift Verification Log Schedule</span>
+                                <span class="font-mono" id="checks-complete-ratio">8 / 9 Logs Completed</span>
+                            </div>
+                            <div class="w-full bg-light-grey h-3.5 rounded border border-mid-grey overflow-hidden relative">
+                                <div id="checks-progress-fill" class="bg-positive-green h-full transition-all duration-500 rounded-l" style="width: 88%"></div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] font-black text-gray-600 uppercase">
+                                <span>Accelerated Recheck Queues</span>
+                                <span class="font-mono text-failure-red font-black" id="active-recheck-alert">1 Correction Target Open</span>
+                            </div>
+                            <div class="w-full bg-light-grey h-3.5 rounded border border-mid-grey overflow-hidden relative">
+                                <div id="recheck-progress-fill" class="bg-alert-amber h-full transition-all duration-500 rounded-l" style="width: 100%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+            
+        </main>
+
+        <!-- ==========================================================================
+             5. FOOTER COMMAND STRIP
+             ========================================================================== -->
+        <footer class="bg-white border-t border-mid-grey p-4 flex flex-col sm:flex-row gap-3 justify-between items-center select-none">
+            <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                <button onclick="undoChanges()" class="w-full sm:w-auto bg-light-grey hover:bg-gray-200 text-dark-charcoal border border-mid-grey px-4 py-2.5 rounded font-black text-xs uppercase transition active:scale-95 shadow-sm">
+                    Undo Field Entry
+                </button>
+                <button onclick="triggerToast('Working draft saved locally.')" class="w-full sm:w-auto bg-review-purple hover:bg-indigo-400 text-white border border-indigo-500 px-4 py-2.5 rounded font-black text-xs uppercase transition active:scale-95 shadow-sm">
+                    Save Working Draft
+                </button>
+                <button id="recheck-button" onclick="startRecheckWorkflow()" class="w-full sm:w-auto bg-warning-yellow hover:bg-yellow-300 text-dark-charcoal border-2 border-alert-amber px-4 py-2.5 rounded font-black text-xs uppercase transition active:scale-95 shadow-md">
+                    Start Accelerated Recheck
+                </button>
+            </div>
+            <button onclick="submitInspection()" class="w-full sm:w-auto bg-positive-green hover:bg-[#00c825] text-white px-6 py-3 rounded-lg font-black text-xs uppercase transition active:scale-95 shadow-lg flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                Finalize Submission Log
+            </button>
+        </footer>
+
+    </div>
+
+    <!-- Live Toast Alert Elements Inside DOM -->
+    <div id="toast-holder" class="fixed bottom-6 right-6 z-[2000] flex flex-col gap-2"></div>
+
+    <!-- ==========================================================================
+         6. CORE INTERACTIVE SCRIPT LOGIC
+         ========================================================================== -->
+    <script>
+        const SPEC_THICKNESS_MIN = 3.01;
+        const SPEC_THICKNESS_MAX = 3.33;
+        const SPEC_THICKNESS_TARGET = 3.22;
+
+        const SPEC_WIDTH_MIN = 1355;
+        const SPEC_WIDTH_MAX = 1375;
+        const SPEC_WIDTH_TARGET = 1365;
+
+        // Active State parameters mapping load conditions
+        let activeData = {
+            thickness: { rhs: 3.18, mid: 3.22, lhs: 2.94 },
+            clippingWidth: { rhs: 1361, mid: 1363, lhs: 1360 }
+        };
+
+        let backupData = JSON.parse(JSON.stringify(activeData));
+        let liveFeederTimer = null;
+
+        // Loaded Scenarios Configurations
+        const scenarios = {
+            passing: {
+                thickness: { rhs: 3.20, mid: 3.24, lhs: 3.21 },
+                clippingWidth: { rhs: 1364, mid: 1367, lhs: 1362 }
+            },
+            failure: {
+                thickness: { rhs: 3.18, mid: 3.22, lhs: 2.94 },
+                clippingWidth: { rhs: 1361, mid: 1363, lhs: 1360 }
+            },
+            warning: {
+                thickness: { rhs: 3.19, mid: 3.23, lhs: 3.20 },
+                clippingWidth: { rhs: 1356, mid: 1363, lhs: 1359 } // RHS width at 1356 triggers amber caution warning
+            }
+        };
+
+        // Window load baseline triggers
+        window.onload = function() {
+            triggerFullEvaluation();
+            triggerToast("Lathe Outfeed calibration telemetry online.", "green");
+        };
+
+        function adjustValue(section, key, step) {
+            let val = activeData[section][key];
+            let decimalPoints = (section === 'thickness') ? 2 : 0;
+            
+            val = parseFloat((val + step).toFixed(decimalPoints));
+            activeData[section][key] = val;
+            
+            // Populate value to active input elements
+            let elementId = (section === 'thickness') ? `thk-${key}` : `width-${key}`;
+            document.getElementById(elementId).value = val;
+            
+            evaluateField(section, key, true);
+        }
+
+        function manualInputChange(section, key, value) {
+            let parsed = parseFloat(value);
+            if (!isNaN(parsed)) {
+                activeData[section][key] = parsed;
+                evaluateField(section, key, true);
+            }
+        }
+
+        function evaluateField(section, key, triggerPulse = false) {
+            let val = activeData[section][key];
+            let badgeId = (section === 'thickness') ? `thk-${key}-badge` : `width-${key}-badge`;
+            let inputId = (section === 'thickness') ? `thk-${key}` : `width-${key}`;
+            
+            let badge = document.getElementById(badgeId);
+            let inputField = document.getElementById(inputId);
+            
+            let status = "PASS";
+            let msg = "";
+            let pulseClass = "";
+
+            // Evaluate Caliper bounds
+            if (section === 'thickness') {
+                if (val < SPEC_THICKNESS_MIN || val > SPEC_THICKNESS_MAX) {
+                    status = "FAIL";
+                    pulseClass = "animate-pulse-fail";
+                } else if (val <= 3.05 || val >= 3.29) {
+                    status = "WARNING";
+                    pulseClass = "animate-pulse-warning";
+                }
+            } else {
+                if (val < SPEC_WIDTH_MIN || val > SPEC_WIDTH_MAX) {
+                    status = "FAIL";
+                    pulseClass = "animate-pulse-fail";
+                } else if (val <= 1358 || val >= 1372) {
+                    status = "WARNING";
+                    pulseClass = "animate-pulse-warning";
+                }
+            }
+
+            // Clean previous class styling layouts
+            badge.className = "w-28 py-1 text-center font-bold text-[10px] text-white rounded uppercase select-none tracking-wider transition-all duration-300";
+            inputField.className = "w-full h-8 text-center font-black border border-mid-grey rounded text-sm focus:ring-2 focus:ring-porta-red focus:outline-none transition-all duration-300";
+
+            if (status === "PASS") {
+                badge.innerText = "PASS";
+                badge.classList.add("bg-positive-green");
+                inputField.classList.add("bg-emerald-50", "border-emerald-300", "text-emerald-800");
+            } else if (status === "WARNING") {
+                badge.innerText = "WARNING";
+                badge.classList.add("bg-alert-amber");
+                inputField.classList.add("bg-amber-50", "border-amber-300", "text-amber-800");
+                if (triggerPulse) {
+                    inputField.classList.add(pulseClass);
+                    setTimeout(() => inputField.classList.remove(pulseClass), 2250);
+                }
+            } else {
+                badge.innerText = "OUT OF SPEC";
+                badge.classList.add("bg-failure-red");
+                inputField.classList.add("bg-rose-50", "border-rose-300", "text-rose-800");
+                if (triggerPulse) {
+                    inputField.classList.add(pulseClass);
+                    setTimeout(() => inputField.classList.remove(pulseClass), 2250);
+                }
+            }
+
+            evaluateSystemDirective();
+        }
+
+        function triggerFullEvaluation() {
+            evaluateField('thickness', 'rhs');
+            evaluateField('thickness', 'mid');
+            evaluateField('thickness', 'lhs');
+            evaluateField('clippingWidth', 'rhs');
+            evaluateField('clippingWidth', 'mid');
+        }
+
+        function evaluateSystemDirective() {
+            let warnings = [];
+            let failures = [];
+
+            // Sweep active inputs
+            for (let sec in activeData) {
+                for (let pos in activeData[sec]) {
+                    let val = activeData[sec][pos];
+                    if (sec === 'thickness') {
+                        if (val < SPEC_THICKNESS_MIN || val > SPEC_THICKNESS_MAX) {
+                            failures.push(`Thickness ${pos.toUpperCase()} (${val}mm)`);
+                        } else if (val <= 3.05 || val >= 3.29) {
+                            warnings.push(`Thickness ${pos.toUpperCase()} (${val}mm)`);
+                        }
+                    } else {
+                        if (val < SPEC_WIDTH_MIN || val > SPEC_WIDTH_MAX) {
+                            failures.push(`Width ${pos.toUpperCase()} (${val}mm)`);
+                        } else if (val <= 1358 || val >= 1372) {
+                            warnings.push(`Width ${pos.toUpperCase()} (${val}mm)`);
+                        }
+                    }
+                }
+            }
+
+            let warningBox = document.getElementById("dynamic-warning-box");
+            let icon = document.getElementById("warning-icon");
+            let title = document.getElementById("warning-box-title");
+            let desc = document.getElementById("warning-box-desc");
+
+            // Clear visual class frames
+            warningBox.className = "rounded-lg p-4 bg-white shadow-inner flex gap-3 transition-all duration-500 border-2";
+
+            if (failures.length > 0) {
+                warningBox.classList.add("border-failure-red", "bg-rose-50/50");
+                icon.innerText = "🚨";
+                icon.className = "text-xl md:text-2xl mt-0.5 text-failure-red animate-bounce";
+                title.innerText = "SYSTEM ENFORCED MITIGATION INSTRUCTION";
+                title.className = "text-xs font-black text-failure-red uppercase tracking-wider mb-1";
+                desc.innerText = `${failures.join(" and ")} failed specifications. Core system paths are locked. Execute two accelerated rechecks; route the active package to the quarantine HOLD register if metrics do not recover.`;
+                document.getElementById("recheck-button").className = "w-full sm:w-auto bg-warning-yellow hover:bg-yellow-300 text-dark-charcoal border-2 border-alert-amber px-4 py-2.5 rounded font-black text-xs uppercase transition active:scale-95 shadow-md animate-pulse";
+            } else if (warnings.length > 0) {
+                warningBox.classList.add("border-alert-amber", "bg-amber-50/50");
+                icon.innerText = "⚠";
+                icon.className = "text-xl md:text-2xl mt-0.5 text-alert-amber";
+                title.innerText = "DIAGNOSTIC PROCESS CAUTION";
+                title.className = "text-xs font-black text-alert-amber uppercase tracking-wider mb-1";
+                desc.innerText = `${warnings.join(" and ")} near tolerance limit thresholds. Ensure physical equipment alignment calibrations match current run tolerances.`;
+                document.getElementById("recheck-button").className = "w-full sm:w-auto bg-light-grey hover:bg-gray-200 text-dark-charcoal border border-mid-grey px-4 py-2.5 rounded font-black text-xs uppercase transition active:scale-95 shadow-sm";
+            } else {
+                warningBox.classList.add("border-positive-green", "bg-emerald-50/50");
+                icon.innerText = "✔";
+                icon.className = "text-xl md:text-2xl mt-0.5 text-positive-green";
+                title.innerText = "PROCESS SECURE & CONTROLLED";
+                title.className = "text-xs font-black text-positive-green uppercase tracking-wider mb-1";
+                desc.innerText = "All active lathe caliper readings and veneer dimensions sit safely inside structural targets. Standard checking intervals are clear.";
+                document.getElementById("recheck-button").className = "w-full sm:w-auto bg-light-grey hover:bg-gray-200 text-dark-charcoal border border-mid-grey px-4 py-2.5 rounded font-black text-xs uppercase transition active:scale-95 shadow-sm";
+            }
+        }
+
+        function selectHistoryRow(logId, status, pack, reads, failDriver, variance, workflow, stamp) {
+            document.getElementById("overlay-log-id").innerText = logId;
+            document.getElementById("overlay-status").innerText = status === 'FAIL' ? 'OUT OF SPEC' : 'PASS CONTROL';
+            
+            let statusText = document.getElementById("overlay-status");
+            statusText.className = "font-black uppercase text-xs";
+            if (status === 'FAIL') {
+                statusText.classList.add("text-failure-red");
+            } else {
+                statusText.classList.add("text-positive-green");
+            }
+
+            document.getElementById("overlay-pack").innerText = pack;
+            document.getElementById("overlay-reads").innerText = reads;
+            document.getElementById("overlay-fail-driver").innerText = failDriver;
+            document.getElementById("overlay-variance").innerText = variance;
+            document.getElementById("overlay-workflow").innerText = workflow;
+            document.getElementById("overlay-timestamp").innerText = stamp;
+
+            triggerToast(`Audit context loaded for record ${logId}.`, "indigo");
+        }
+
+        function loadScenario(type) {
+            if (scenarios[type]) {
+                activeData = JSON.parse(JSON.stringify(scenarios[type]));
+                
+                // Update elements inputs
+                document.getElementById("thk-rhs").value = activeData.thickness.rhs;
+                document.getElementById("thk-mid").value = activeData.thickness.mid;
+                document.getElementById("thk-lhs").value = activeData.thickness.lhs;
+                document.getElementById("width-rhs").value = activeData.clippingWidth.rhs;
+                document.getElementById("width-mid").value = activeData.clippingWidth.mid;
+
+                // Re-evaluate
+                evaluateField('thickness', 'rhs', true);
+                evaluateField('thickness', 'mid', true);
+                evaluateField('thickness', 'lhs', true);
+                evaluateField('clippingWidth', 'rhs', true);
+                evaluateField('clippingWidth', 'mid', true);
+
+                triggerToast(`Scenario Context [${type.toUpperCase()}] loaded successfully.`, "green");
+            }
+        }
+
+        function toggleLiveFeeder() {
+            let checked = document.getElementById("live-feeder").checked;
+            if (checked) {
+                triggerToast("Live OPC-UA Tag Feeder online.", "green");
+                liveFeederTimer = setInterval(() => {
+                    // Inject minor variations to inputs
+                    activeData.thickness.rhs = parseFloat((3.15 + (Math.random() * 0.15)).toFixed(2));
+                    activeData.thickness.mid = parseFloat((3.18 + (Math.random() * 0.12)).toFixed(2));
+                    activeData.thickness.lhs = parseFloat((2.90 + (Math.random() * 0.40)).toFixed(2)); // LHS fails occasionally
+
+                    activeData.clippingWidth.rhs = Math.floor(1354 + (Math.random() * 20));
+                    activeData.clippingWidth.mid = Math.floor(1358 + (Math.random() * 16));
+
+                    // Sync UI inputs
+                    document.getElementById("thk-rhs").value = activeData.thickness.rhs;
+                    document.getElementById("thk-mid").value = activeData.thickness.mid;
+                    document.getElementById("thk-lhs").value = activeData.thickness.lhs;
+                    document.getElementById("width-rhs").value = activeData.clippingWidth.rhs;
+                    document.getElementById("width-mid").value = activeData.clippingWidth.mid;
+
+                    triggerFullEvaluation();
+                }, 2500);
+            } else {
+                clearInterval(liveFeederTimer);
+                triggerToast("Live telemetry paused.", "indigo");
+            }
+        }
+
+        function undoChanges() {
+            activeData = JSON.parse(JSON.stringify(backupData));
+            
+            document.getElementById("thk-rhs").value = activeData.thickness.rhs;
+            document.getElementById("thk-mid").value = activeData.thickness.mid;
+            document.getElementById("thk-lhs").value = activeData.thickness.lhs;
+            document.getElementById("width-rhs").value = activeData.clippingWidth.rhs;
+            document.getElementById("width-mid").value = activeData.clippingWidth.mid;
+
+            triggerFullEvaluation();
+            triggerToast("Pending fields reset to last working baseline.", "indigo");
+        }
+
+        function startRecheckWorkflow() {
+            triggerToast("Forced accelerated recheck sequence initiated on LHS thickness.", "yellow");
+            loadScenario('passing'); // Reset to passing scenario so they can easily resolve the issue
+        }
+
+        function submitInspection() {
+            // Check for failures before committing
+            let hasFailures = false;
+            for (let sec in activeData) {
+                for (let pos in activeData[sec]) {
+                    let val = activeData[sec][pos];
+                    if (sec === 'thickness') {
+                        if (val < SPEC_THICKNESS_MIN || val > SPEC_THICKNESS_MAX) hasFailures = true;
+                    } else {
+                        if (val < SPEC_WIDTH_MIN || val > SPEC_WIDTH_MAX) hasFailures = true;
+                    }
+                }
+            }
+
+            if (hasFailures) {
+                triggerToast("Cannot submit inspection. Resolve active out-of-spec bounds first.", "red");
+                return;
+            }
+
+            triggerToast("Inspection transaction submitted and committed to central database.", "green");
+            
+            // Increment checks completed progress
+            document.getElementById("checks-complete-ratio").innerText = "9 / 9 Logs Completed";
+            document.getElementById("checks-progress-fill").style.width = "100%";
+            document.getElementById("active-recheck-alert").innerText = "0 Corrections Pending";
+            document.getElementById("active-recheck-alert").className = "font-mono text-positive-green font-black";
+            document.getElementById("recheck-progress-fill").style.width = "0%";
+        }
+
+        function triggerToast(text, color = "indigo") {
+            const holder = document.getElementById("toast-holder");
+            const toast = document.createElement("div");
+            
+            let colorClasses = "bg-slate-900 text-white border-l-4 border-indigo-500";
+            if (color === "green") colorClasses = "bg-slate-900 text-white border-l-4 border-emerald-500";
+            if (color === "red") colorClasses = "bg-slate-900 text-white border-l-4 border-rose-500";
+            if (color === "yellow") colorClasses = "bg-slate-900 text-white border-l-4 border-amber-400";
+
+            toast.className = `p-3 rounded shadow-xl text-xs font-bold transition-all duration-300 transform translate-y-2 opacity-0 flex items-center justify-between gap-4 ${colorClasses}`;
+            toast.innerHTML = `
+                <span>${text}</span>
+                <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-white font-black">&times;</button>
+            `;
+
+            holder.appendChild(toast);
+            
+            // Animate In
+            setTimeout(() => {
+                toast.classList.remove("translate-y-2", "opacity-0");
+            }, 10);
+
+            // Auto Remove after 4 seconds
+            setTimeout(() => {
+                toast.classList.add("translate-y-2", "opacity-0");
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
